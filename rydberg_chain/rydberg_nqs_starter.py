@@ -272,7 +272,7 @@ print(f"  Parameter type: complex128")
 #
 #    model = cus_mlp.AmpPhaseMLP(
 #        alpha=4,
-#        param_dtype=jnp.float64,
+#        param_dtype=jnp.float32,
 #        hidden_activation=jax.nn.gelu,
 #        use_hidden_bias=True,
 #        equal_amplitude=False  # Set True to only learn phase
@@ -500,8 +500,9 @@ print("=" * 80)
 # Number of optimization iterations
 n_iterations = 1000  # Typical: 1000-5000 depending on convergence
 
-# Output file name
-output_file = f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}"
+# Output file path: save .log and .mpack in the same folder as this script (rydberg_chain/)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+output_file = os.path.join(_script_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}")
 
 print(f"  Iterations: {n_iterations}")
 print(f"  Output file: {output_file}.log")

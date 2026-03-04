@@ -13,8 +13,12 @@
 ├── README.md              # 本文件：介绍与环境配置
 ├── requirements.txt       # Python 依赖列表
 ├── NQS project.md        # 课程/项目说明（模型、任务、参考文献）
+├── rydberg_*.log, rydberg_*.mpack   # （若存在）根目录下为 complex64 精度运行所生成，见下方说明
 └── rydberg_chain/
-    └── rydberg_nqs_starter.py   # NQS 入门脚本（NetKet + JAX）
+    ├── rydberg_nqs_starter.py   # NQS 入门脚本（NetKet + JAX）
+    ├── parse_vmc_log.py         # 解析 .log 为可读摘要与表格
+    ├── rydberg_L*.log           # VMC 运行日志（能量、观测量等，运行脚本后生成）
+    └── rydberg_L*.mpack         # VMC 检查点/模型文件（NetKet 二进制格式，运行脚本后生成）
 ```
 
 ---
@@ -58,7 +62,7 @@ sudo apt install python3 python3-pip python3-venv
 **方式 A：使用 `venv`（推荐，轻量）**
 
 ```bash
-cd /mnt/d/0_code/0_nqs   # 或你的实际路径，如 ~/0_nqs
+cd ~/path/to/0_nqs   # 请替换为你本机的项目根目录路径
 
 # 创建虚拟环境（可放在项目内 .venv，或用户目录下如 nqs_wsl）
 python3 -m venv .venv
@@ -75,7 +79,7 @@ source .venv/bin/activate
 **方式 B：使用 Conda（若已安装 Anaconda/Miniconda）**
 
 ```bash
-cd /mnt/d/0_code/0_nqs
+cd ~/path/to/0_nqs
 
 # 创建独立环境，指定 Python 版本
 conda create -n nqs python=3.11 -y
@@ -142,13 +146,20 @@ print('Devices:', jax.devices())
 
 ```bash
 # 确保在项目根目录且已激活环境
-cd /mnt/d/0_code/0_nqs
+cd ~/path/to/0_nqs
 source .venv/bin/activate   # 或 source ~/nqs_wsl/bin/activate / conda activate nqs
 
 python3 rydberg_chain/rydberg_nqs_starter.py
 ```
 
-脚本会打印 JAX/NetKet 版本与设备信息，并进行一次小规模 NQS 优化。
+脚本会打印 JAX/NetKet 版本与设备信息，并进行一次小规模 NQS 优化。运行完成后，在 **`rydberg_chain/`** 目录下会生成：
+
+- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.log`**：每步的能量、方差、观测量（如 Mx、Mz、Ntot）等文本日志，可用 NetKet 或自行脚本分析、画图。
+- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.mpack`**：NetKet 的二进制检查点，保存变分态与优化状态，便于后续恢复或继续训练。
+
+（其中 `{L}`、`{δ}`、`{Rb}`、`{α}` 为脚本中的物理参数，例如默认会生成 `rydberg_chain/rydberg_L16_delta0.5_Rb1.0_alpha6.log` 与同名 `.mpack`。无论从项目根目录还是从 `rydberg_chain/` 内运行脚本，输出都会写入 `rydberg_chain/`。）`.mpack` 即 NetKet 的检查点/模型文件，内含变分态与优化状态，可用于恢复或继续训练。若要将 `.log` 转成便于阅读的摘要与表格，可在项目根目录执行：`python3 rydberg_chain/parse_vmc_log.py [log 路径]`，加 `-t` 可输出部分迭代步的表格。
+
+**说明**：若在**项目根目录**下看到 `rydberg_*.log` 或 `rydberg_*.mpack`，则为此前在 **complex64（单精度）** 精度下运行所生成；当前脚本已改为将输出写入 `rydberg_chain/`，且默认使用 **complex128（双精度）**。
 
 ---
 
