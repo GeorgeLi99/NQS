@@ -1,0 +1,15 @@
+# NQS project - Python dependencies (版本与 WSL 实测环境一致)
+# Python >= 3.9 recommended. Install in WSL: see README.md
+
+numpy==2.0.2
+jax==0.4.38
+jaxlib==0.4.38
+netket==3.19.2
+optax==0.2.5
+flax==0.10.4
+
+# Optional: for MPI parallel runs (e.g. mpirun -np 4 python ...)
+# mpi4py==4.1.1
+
+# GPU (WSL): 先安装 jax[cuda12]，再 pip install -r requirements.txt
+# pip install --upgrade "jax[cuda12]"
