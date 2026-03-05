@@ -16,18 +16,19 @@
 ├── rydberg_*.log, rydberg_*.mpack   # （若存在）根目录下为 complex64 精度运行所生成，见下方说明
 └── rydberg_chain/
     ├── rydberg_nqs_starter.py   # NQS 入门脚本；TRAIN_SUBDIR 指定精度子目录，LOAD_CHECKPOINT 可恢复
-    ├── parse_vmc_log.py         # 解析 .log 为可读摘要与表格（默认 train/complex128/，可用 -p complex64）
+    ├── parse_vmc_log.py         # 解析 .log → *_runN_parsed.csv / *_runN_summary.csv（不覆盖，-r 指定 N）
+    ├── merge_vmc_csvs.py        # 将多次训练 *_run*_*.csv 合并为 *_merged_parsed.csv、*_merged_summary.csv
     ├── how_to_load_model.py     # 从 .mpack 加载参数的示例
-    ├── Fig_Convergence_Obs.py   # 收敛与观测量画图（读取 train/<precision>/ 下 log）
+    ├── Fig_Convergence_Obs.py   # 收敛与观测量画图（读合并后的 CSV，输出到 figure/）
+    ├── Fig_Convergence_Obs_compare.py   # complex128 vs complex64 对比图（读各精度下合并 CSV）
+    ├── figure/                  # 绘图输出目录（PDF/SVG）
     └── train/                   # 训练输出目录，按精度分子目录
         ├── complex128/          # 双精度运行输出（默认）
-        │   ├── rydberg_L*.log
-        │   ├── rydberg_L*.mpack
-        │   └── *_parsed.csv, *_summary.csv
-        └── complex64/           # 单精度运行输出（TRAIN_SUBDIR="complex64" 时）
-            ├── rydberg_L*.log
-            ├── rydberg_L*.mpack
-            └── *_parsed.csv, *_summary.csv
+        │   ├── rydberg_L*.log, rydberg_L*.mpack
+        │   ├── *_runN_parsed.csv, *_runN_summary.csv   # 单次训练解析结果
+        │   └── *_merged_parsed.csv, *_merged_summary.csv   # merge_vmc_csvs 合并结果
+        └── complex64/           # 单精度运行输出
+            └── （同上）
 ```
 
 ---
@@ -166,9 +167,26 @@ python3 rydberg_chain/rydberg_nqs_starter.py
 - **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.log`**：每步的能量、方差、观测量（如 Mx、Mz、Ntot）等文本日志。
 - **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.mpack`**：NetKet 的二进制检查点，便于用 `LOAD_CHECKPOINT` 恢复训练。
 
-解析 log 并保存 CSV 时，路径与上述一致：不指定 log 时默认读 **`train/complex128/`** 下默认文件名，可用 `-p complex64` 改为读 **`train/complex64/`**；生成的 `*_parsed.csv` 与 `*_summary.csv` 会写在对应 log 所在目录。例如：`python3 rydberg_chain/parse_vmc_log.py`（默认 complex128）、`python3 rydberg_chain/parse_vmc_log.py -p complex64`，或显式指定：`python3 rydberg_chain/parse_vmc_log.py rydberg_chain/train/complex128/rydberg_L16_....log`。
+解析 log 并保存 CSV 时，路径与上述一致：不指定 log 时默认读 **`train/complex128/`** 下默认文件名，可用 `-p complex64` 改为读 **`train/complex64/`**。解析结果默认保存为 **`*_runN_parsed.csv`** 与 **`*_runN_summary.csv`**（N 为第几次训练，自动递增不覆盖）；可用 `-r N` 指定 N。
 
 **说明**：训练与解析的读写路径统一为 **`rydberg_chain/train/complex128/`** 或 **`rydberg_chain/train/complex64/`**；若在项目根或 `rydberg_chain/` 下存在旧版 log/mpack，可忽略或移至对应 `train/<precision>/`。
+
+### 6. 解析、合并与画图（可选）
+
+多次训练（含从 checkpoint 微调续训）时，建议流程：
+
+1. **解析**：每次训练得到新 log 后运行  
+   `python3 rydberg_chain/parse_vmc_log.py`（或 `-p complex64`），得到 `*_run1_*`、`*_run2_*`、…，不覆盖。
+2. **合并**：将同一目录下多次 run 的 CSV 合并为一条长轨迹（含 `global_iter` 连续编号）：  
+   `python3 rydberg_chain/merge_vmc_csvs.py [目录]`  
+   默认目录为 `rydberg_chain/train/complex128`，生成 **`*_merged_parsed.csv`** 与 **`*_merged_summary.csv`**。
+3. **画图**：  
+   - **单精度收敛图**：`python3 rydberg_chain/Fig_Convergence_Obs.py`  
+     读取合并后的 CSV（若不存在则回退到 `*_run1_*` 或 `*_parsed.csv`），左图相对误差、右图观测量，输出到 **`rydberg_chain/figure/`**。  
+   - **complex128 vs complex64 对比图**：`python3 rydberg_chain/Fig_Convergence_Obs_compare.py`  
+     读取 `train/complex128/` 与 `train/complex64/` 下合并后的 CSV，在同一张图左右两子图中对比两条精度曲线。
+
+画图脚本优先使用 **`*_merged_*`**，便于把多次训练/微调视为一条连续曲线（横轴 `global_iter`）。
 
 ---
 

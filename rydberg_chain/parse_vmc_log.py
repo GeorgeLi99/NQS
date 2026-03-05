@@ -11,13 +11,15 @@
   - 运行概览（迭代数、最终能量与误差、接受率等）
   - 观测量摘要（Mx, Mz, Ntot 等）
   - 可选：指定步数的能量与观测量表格
-  - -o/--csv：将全部迭代步数据保存为 CSV 文件
+  - 默认保存为 name_runN_parsed.csv / name_runN_summary.csv（N 为第几次训练），不覆盖已有；-r N 可指定 N
+  - -o/--csv：指定 CSV 路径时仍可覆盖
 """
 
 import argparse
 import csv
 import json
 import os
+import re
 import sys
 
 
@@ -195,6 +197,19 @@ def save_summary_csv(data: dict, log_path: str, csv_path: str) -> None:
         w.writerow(values)
 
 
+def _get_next_run_number(base_dir: str, name: str) -> int:
+    """在 base_dir 下查找已存在的 {name}_run*_parsed.csv，返回下一可用编号（第几次训练）。"""
+    if not os.path.isdir(base_dir):
+        return 1
+    pattern = re.compile(rf"^{re.escape(name)}_run(\d+)_parsed\.csv$")
+    max_run = 0
+    for f in os.listdir(base_dir):
+        m = pattern.match(f)
+        if m:
+            max_run = max(max_run, int(m.group(1)))
+    return max_run + 1
+
+
 def save_to_csv(data: dict, csv_path: str) -> None:
     """将全部迭代步数据写入 CSV 文件。"""
     n = len(data["Energy"]["iters"])
@@ -248,6 +263,13 @@ def main():
         action="store_true",
         help="不生成 CSV 文件，仅打印摘要",
     )
+    parser.add_argument(
+        "-r", "--run",
+        type=int,
+        default=None,
+        metavar="N",
+        help="第几次训练结果，用于文件名 name_runN_parsed.csv；不指定则自动递增，不覆盖已有文件",
+    )
     args = parser.parse_args()
 
     if args.log_file:
@@ -277,24 +299,26 @@ def main():
         print("\n  【部分迭代步数据】\n")
         print_table(data, steps)
 
-    # 保存 CSV（默认与 log 同目录、同名 _parsed.csv 与 _summary.csv，可用 --no-csv 关闭）
+    # 保存 CSV（默认与 log 同目录，文件名带 run N 表示第几次训练，不覆盖已有）
     if not args.no_csv:
         if args.csv:
             csv_path = os.path.abspath(args.csv)
+            base_dir = os.path.dirname(csv_path)
+            base_name = os.path.splitext(os.path.basename(csv_path))[0]
+            if base_name.endswith("_parsed"):
+                summary_path = os.path.join(base_dir, base_name.replace("_parsed", "_summary") + ".csv")
+            else:
+                summary_path = os.path.join(base_dir, f"{base_name}_summary.csv")
         else:
-            base, _ = os.path.split(log_path)
+            base_dir = os.path.dirname(os.path.abspath(log_path))
             name = os.path.splitext(os.path.basename(log_path))[0]
-            csv_path = os.path.join(base, f"{name}_parsed.csv")
+            run = args.run if args.run is not None else _get_next_run_number(base_dir, name)
+            csv_path = os.path.join(base_dir, f"{name}_run{run}_parsed.csv")
+            summary_path = os.path.join(base_dir, f"{name}_run{run}_summary.csv")
+            print(f"\n  本次为第 {run} 次训练结果，保存为 *_run{run}_*.csv")
         save_to_csv(data, csv_path)
-        # 摘要（与控制台打印内容一致）保存到同名 _summary.csv
-        base_dir = os.path.dirname(csv_path)
-        base_name = os.path.splitext(os.path.basename(csv_path))[0]
-        if base_name.endswith("_parsed"):
-            summary_path = os.path.join(base_dir, base_name.replace("_parsed", "_summary") + ".csv")
-        else:
-            summary_path = os.path.join(base_dir, f"{base_name}_summary.csv")
         save_summary_csv(data, log_path, summary_path)
-        print(f"\n  迭代数据已保存: {csv_path}")
+        print(f"  迭代数据已保存: {csv_path}")
         print(f"  摘要已保存: {summary_path}")
 
 

@@ -1,80 +1,94 @@
+import csv
+import os
+import sys
 import numpy as np
-import json
+import scienceplots
 
-def load_log(key_log, E0):
-    data=json.load(open(f"{key_log}"))
-    
-    # iteration information 
-    iters = data['Energy']['iters']
-    energy=data['Energy']['Mean']['real']
-    
-    print("keys:", data.keys())
-    
-    # relative error
-    error = np.array(energy)-E0 
-    relative_error = np.abs(error/E0)
+# 数据路径：优先使用 merge_vmc_csvs.py 合并后的 CSV；不存在时回退到 _run1_ 或单文件
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+DIR_DATA = os.path.join(_script_dir, "train", "complex128")
+BASENAME = "rydberg_L16_delta0.5_Rb1.0_alpha6"
 
-    return np.array(iters), np.array(energy), error, relative_error
 
-def ConvergenceData(key_list,E0):
-    """ Load a list of log, merge them into a vector."""
-    N_log = len(key_list)
-    ites = np.array([], dtype=float)
-    rela_error = np.array([], dtype=float)
-    print("shape of init:",ites.shape)
-    
-    for k in range(N_log):
-        ite_k, energy_k, error_k, rela_error_k = load_log(key_list[k], E0)
-        print("shape of load:",ite_k.shape)
-        ites = np.concatenate( (ites, ite_k + ites.shape[0]+1), axis=0)
-        rela_error = np.concatenate((rela_error, rela_error_k), axis=0)
-        
-    return ites,rela_error
+def _resolve_parsed_csv():
+    for name in [f"{BASENAME}_merged_parsed.csv", f"{BASENAME}_run1_parsed.csv", f"{BASENAME}_parsed.csv"]:
+        p = os.path.join(DIR_DATA, name)
+        if os.path.isfile(p):
+            return p
+    return os.path.join(DIR_DATA, f"{BASENAME}_merged_parsed.csv")
 
-def load_obs(key_log,):
-    data=json.load(open(f"{key_log}"))
-    
-    # iteration information 
-    iters = data['Mx']['iters']
-    ntot =data['Ntot']['Mean']['real']
-    mz =data['Mz']['Mean']['real']
-    print("keys:", data.keys())
 
-    return np.array(iters), np.array(ntot), np.array(mz)
+def _resolve_summary_csv():
+    for name in [f"{BASENAME}_merged_summary.csv", f"{BASENAME}_run1_summary.csv", f"{BASENAME}_summary.csv"]:
+        p = os.path.join(DIR_DATA, name)
+        if os.path.isfile(p):
+            return p
+    return os.path.join(DIR_DATA, f"{BASENAME}_merged_summary.csv")
 
-def ObservablesData(key_list,):
-    """ Load a list of log, merge them into a vector."""
-    N_log = len(key_list)
-    ites = np.array([], dtype=float)
-    ntot = np.array([], dtype=float)
-    mz = np.array([], dtype=float)
-    print("shape of init:",ites.shape)
-    
-    for k in range(N_log):
-        ite_k, ntot_k, mz_k = load_obs(key_list[k])
-        print("shape of load:",ite_k.shape)
-        ites = np.concatenate( (ites, ite_k + ites.shape[0]+1), axis=0)
-        ntot = np.concatenate((ntot, ntot_k), axis=0)
-        mz = np.concatenate((mz, mz_k), axis=0) 
-    return ites,ntot,mz
+
+PARSED_CSV = _resolve_parsed_csv()
+SUMMARY_CSV = _resolve_summary_csv()
+
+
+def _read_parsed_csv(parsed_path: str):
+    """从 _parsed.csv 读成列字典。"""
+    with open(parsed_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    if not rows:
+        raise ValueError(f"Empty CSV: {parsed_path}")
+    cols = {k: np.array([float(r[k]) for r in rows]) for k in rows[0].keys()}
+    return cols
+
+
+def load_convergence_from_csv(parsed_path: str, E0: float):
+    """从 parsed/merged CSV 读取迭代轴、Energy，计算相对误差 ε = |E-E0|/|E0|。优先用 global_iter。"""
+    cols = _read_parsed_csv(parsed_path)
+    iters = cols["global_iter"] if "global_iter" in cols else cols["iter"]
+    energy = cols["Energy"]
+    relative_error = np.abs((energy - E0) / E0)
+    return iters, energy, relative_error
+
+
+def load_observables_from_csv(parsed_path: str):
+    """从 parsed/merged CSV 读取迭代轴、Ntot、Mz。优先用 global_iter。"""
+    cols = _read_parsed_csv(parsed_path)
+    iters = cols["global_iter"] if "global_iter" in cols else cols["iter"]
+    return iters, cols["Ntot"], cols["Mz"]
+
+
+def load_E0_from_summary(summary_path: str):
+    """从 summary/merged CSV 读取参考能量。合并文件多行时取最后一行 E_final。"""
+    if not os.path.isfile(summary_path):
+        return None
+    with open(summary_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    if not rows:
+        return None
+    return float(rows[-1]["E_final"])
+
 
 ### main code
 L = 16
 
-E0 = -8.878144715543531
+# 参考基态能量：优先从 summary CSV 读 E_final，否则用已知值
+E0 = load_E0_from_summary(SUMMARY_CSV)
+if E0 is None:
+    E0 = -8.878144715543531
 
 plot_key = "Energy_and_Obs"
-
 alpha = 6
 
-# 与 rydberg_nqs_starter.py 输出路径一致：train/<precision>/
-cal1 =  [
-    "train/complex128/rydberg_L16_delta0.5_Rb1.0_alpha6.log",
-]
+print("Data:", PARSED_CSV)
+print("GS energy (E0):", E0)
 
-print("GS energy:",E0)
-data1 = ConvergenceData(cal1, E0)
-dataObs1 = ObservablesData(cal1, )
+# 从 CSV 读取收敛与观测量
+iters, energy, relative_error = load_convergence_from_csv(PARSED_CSV, E0)
+data1 = (iters, relative_error)
+
+iters_obs, ntot, mz = load_observables_from_csv(PARSED_CSV)
+dataObs1 = (iters_obs, ntot, mz)
 
 
 colors = ["#085293", "#90d4bd",
@@ -82,17 +96,14 @@ colors = ["#085293", "#90d4bd",
     "#6300a7", "#a51f99",
     "#b7ea63",]
 
-# plot the figure
+# plot the figure（Science 风格，需安装 SciencePlots: pip install SciencePlots）
 import matplotlib.pyplot as plt
-# LaTex text 
-import matplotlib as mpl
-# set up of plot 
-mpl.rcParams['text.usetex'] = True # the default is false, we set True here
-mpl.rcParams['lines.linewidth'] = 1
-plt.rcParams['font.family'] = ['Times New Roman']
+import scienceplots
+
+plt.style.use(["science", "no-latex"])  # 不用 LaTeX，避免未安装时报错
 
 # figure size
-plt.figure(figsize=(2*8.6, 6.45))
+plt.figure(figsize=(2 * 8.6, 6.45))
 
 # (1) relative error
 ax1=plt.subplot(121)
@@ -105,19 +116,20 @@ ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$',
 ax1.set_xlabel('Iteration',fontsize=25)
 
 ax1.set_xlim((0,2000))
-ax1.set_ylim((1E-6,1))
+ax1.set_ylim((1e-8, 1))
 ax1.set_yscale('log')
 
 ax1.set_xticks([0, 500, 1000, 1500, 2000],
-    ['0',r'500',r'1000',r'1500 ', r'2000'],
+    ['0',r'500',r'1000',r'1500', r'2000'],
     fontsize=25,)
 
-ax1.set_yticks([1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5],
-    [r'$10^0$',r'$10^{-1}$',r'$10^{-2}$',r'$10^{-3}$',r'$10^{-4}$',r'$10^{-5}$',],
+ax1.set_yticks([1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
+    [r'$10^0$', r'$10^{-1}$', r'$10^{-2}$', r'$10^{-3}$', r'$10^{-4}$', r'$10^{-5}$', r'$10^{-6}$',  r'$10^{-7}$'],
     fontsize=25,)
 
 
 ax1.legend(loc='upper right',fontsize=25, frameon=False,)
+ax1.text(0.02, 0.02, rf"$E_0 = {E0:.6g}$", transform=ax1.transAxes, fontsize=18, verticalalignment="bottom")
 
 ax1.tick_params("both", which='major', length=4, # width=1.0, 
     direction='in',#labelsize=12.5
@@ -159,9 +171,38 @@ ax2.tick_params("both", which='minor', length=2, # width=1.0,
 # Big title
 plt.suptitle(r"$\delta = 0.5, L=$"+f"{L},"+" RBM, "+r"$\alpha=$"+f"{alpha}", fontsize=25)
 # adjust the space
-plt.subplots_adjust(hspace=0.25, wspace=0.25) 
+plt.subplots_adjust(hspace=0.25, wspace=0.25)
 plt.tight_layout()
-plt.show()
 
-plt.savefig(f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.pdf")
-plt.savefig(f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.svg")
+# 先保存再显示，避免 show() 后图形被清空；输出到 rydberg_chain/figure/
+out_dir = os.path.join(_script_dir, "figure")
+os.makedirs(out_dir, exist_ok=True)
+basename_pdf = f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.svg"
+
+
+def _save_fig(path: str) -> bool:
+    """保存到 path，失败返回 False（如权限或文件被占用）。"""
+    try:
+        plt.savefig(path)
+        return True
+    except (PermissionError, OSError) as e:
+        print(f"  保存失败 {path}: {e}", file=sys.stderr)
+        return False
+
+
+saved_any = False
+for ext, basename in [("pdf", basename_pdf), ("svg", basename_svg)]:
+    path = os.path.join(out_dir, basename)
+    if _save_fig(path):
+        print(f"  已保存: {path}")
+        saved_any = True
+    else:
+        # 权限不足或文件被占用时，尝试保存到脚本所在目录
+        fallback = os.path.join(_script_dir, basename)
+        if _save_fig(fallback):
+            print(f"  已保存到备用路径: {fallback}")
+            saved_any = True
+if not saved_any:
+    print("  警告: 未能保存图片，请关闭已打开的 PDF/SVG 或检查目录权限。")
+plt.show()
