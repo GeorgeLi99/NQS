@@ -49,6 +49,7 @@ import jax
 import jax.numpy as jnp
 import netket as nk
 import optax as opx
+import flax.serialization
 from flax import linen as nn
 from netket.operator.spin import sigmax, sigmaz
 
@@ -500,9 +501,22 @@ print("=" * 80)
 # Number of optimization iterations
 n_iterations = 1000  # Typical: 1000-5000 depending on convergence
 
-# Output file path: save .log and .mpack in the same folder as this script (rydberg_chain/)
+# Output directory: save .log and .mpack under rydberg_chain/train/<precision>/
+# Must match model param_dtype: "complex128" or "complex64"
+TRAIN_SUBDIR = "complex128"
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-output_file = os.path.join(_script_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}")
+train_dir = os.path.join(_script_dir, "train", TRAIN_SUBDIR)
+os.makedirs(train_dir, exist_ok=True)
+output_file = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}")
+
+# Optional: load checkpoint to resume training. Set to .mpack path (under train/<precision>/) or None to train from scratch.
+LOAD_CHECKPOINT = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}.mpack")  # e.g. os.path.join(train_dir, "rydberg_L16_delta0.5_Rb1.0_alpha6.mpack")
+
+if LOAD_CHECKPOINT is not None and os.path.isfile(LOAD_CHECKPOINT):
+    with open(LOAD_CHECKPOINT, "rb") as f:
+        vstate.variables = flax.serialization.from_bytes(vstate.variables, f.read())
+    print(f"  Loaded parameters from: {LOAD_CHECKPOINT}")
+    print(f"  Number of parameters: {vstate.n_parameters}")
 
 print(f"  Iterations: {n_iterations}")
 print(f"  Output file: {output_file}.log")

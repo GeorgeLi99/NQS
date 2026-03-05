@@ -1,0 +1,2 @@
+log_file,n_iters,E_initial,E_final,sigma_E_final,accept_initial,accept_final,Mx_final,Mz_final,Ntot_final
+/mnt/d/0_code/0_nqs/rydberg_chain/rydberg_L16_delta0.5_Rb1.0_alpha6.log,1000,8.022470478828884,-8.877751005148864,9.97308408358704e-05,0.9870217641194662,0.6798728307088217,-0.9234560260843518,-0.21490859985351562,0.3925457000732422

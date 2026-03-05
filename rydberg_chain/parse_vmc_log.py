@@ -4,7 +4,8 @@
 
 用法:
   python3 parse_vmc_log.py [log 文件路径]
-  python3 parse_vmc_log.py   # 默认解析同目录下 rydberg_L16_delta0.5_Rb1.0_alpha6.log
+  python3 parse_vmc_log.py   # 默认解析 train/complex128/rydberg_L16_delta0.5_Rb1.0_alpha6.log
+  python3 parse_vmc_log.py --precision complex64   # 默认解析 train/complex64/ 下同名 log
 
 输出:
   - 运行概览（迭代数、最终能量与误差、接受率等）
@@ -215,7 +216,14 @@ def main():
         "log_file",
         nargs="?",
         default=None,
-        help="log 文件路径（默认: 同目录下 rydberg_L16_delta0.5_Rb1.0_alpha6.log）",
+        help="log 文件路径（不指定时使用 train/<precision>/ 下默认文件名）",
+    )
+    parser.add_argument(
+        "-p", "--precision",
+        type=str,
+        default="complex128",
+        choices=("complex128", "complex64"),
+        help="未指定 log 时使用的精度子目录（默认: complex128）",
     )
     parser.add_argument(
         "-t", "--table",
@@ -245,8 +253,9 @@ def main():
     if args.log_file:
         log_path = os.path.abspath(args.log_file)
     else:
+        # 默认与 rydberg_nqs_starter.py 输出一致：rydberg_chain/train/<precision>/
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(script_dir, "rydberg_L16_delta0.5_Rb1.0_alpha6.log")
+        log_path = os.path.join(script_dir, "train", args.precision, "rydberg_L16_delta0.5_Rb1.0_alpha6.log")
 
     if not os.path.isfile(log_path):
         print(f"错误: 未找到文件 {log_path}", file=sys.stderr)

@@ -15,10 +15,19 @@
 ├── NQS project.md        # 课程/项目说明（模型、任务、参考文献）
 ├── rydberg_*.log, rydberg_*.mpack   # （若存在）根目录下为 complex64 精度运行所生成，见下方说明
 └── rydberg_chain/
-    ├── rydberg_nqs_starter.py   # NQS 入门脚本（NetKet + JAX）
-    ├── parse_vmc_log.py         # 解析 .log 为可读摘要与表格
-    ├── rydberg_L*.log           # VMC 运行日志（能量、观测量等，运行脚本后生成）
-    └── rydberg_L*.mpack         # VMC 检查点/模型文件（NetKet 二进制格式，运行脚本后生成）
+    ├── rydberg_nqs_starter.py   # NQS 入门脚本；TRAIN_SUBDIR 指定精度子目录，LOAD_CHECKPOINT 可恢复
+    ├── parse_vmc_log.py         # 解析 .log 为可读摘要与表格（默认 train/complex128/，可用 -p complex64）
+    ├── how_to_load_model.py     # 从 .mpack 加载参数的示例
+    ├── Fig_Convergence_Obs.py   # 收敛与观测量画图（读取 train/<precision>/ 下 log）
+    └── train/                   # 训练输出目录，按精度分子目录
+        ├── complex128/          # 双精度运行输出（默认）
+        │   ├── rydberg_L*.log
+        │   ├── rydberg_L*.mpack
+        │   └── *_parsed.csv, *_summary.csv
+        └── complex64/           # 单精度运行输出（TRAIN_SUBDIR="complex64" 时）
+            ├── rydberg_L*.log
+            ├── rydberg_L*.mpack
+            └── *_parsed.csv, *_summary.csv
 ```
 
 ---
@@ -152,14 +161,14 @@ source .venv/bin/activate   # 或 source ~/nqs_wsl/bin/activate / conda activate
 python3 rydberg_chain/rydberg_nqs_starter.py
 ```
 
-脚本会打印 JAX/NetKet 版本与设备信息，并进行一次小规模 NQS 优化。运行完成后，在 **`rydberg_chain/`** 目录下会生成：
+脚本会打印 JAX/NetKet 版本与设备信息，并进行一次小规模 NQS 优化。运行完成后，在 **`rydberg_chain/train/<precision>/`** 下会生成（`<precision>` 由脚本内 `TRAIN_SUBDIR` 决定，与模型精度一致：默认 **complex128**，单精度时改为 **complex64**）：
 
-- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.log`**：每步的能量、方差、观测量（如 Mx、Mz、Ntot）等文本日志，可用 NetKet 或自行脚本分析、画图。
-- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.mpack`**：NetKet 的二进制检查点，保存变分态与优化状态，便于后续恢复或继续训练。
+- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.log`**：每步的能量、方差、观测量（如 Mx、Mz、Ntot）等文本日志。
+- **`rydberg_L{L}_delta{δ}_Rb{Rb}_alpha{α}.mpack`**：NetKet 的二进制检查点，便于用 `LOAD_CHECKPOINT` 恢复训练。
 
-（其中 `{L}`、`{δ}`、`{Rb}`、`{α}` 为脚本中的物理参数，例如默认会生成 `rydberg_chain/rydberg_L16_delta0.5_Rb1.0_alpha6.log` 与同名 `.mpack`。无论从项目根目录还是从 `rydberg_chain/` 内运行脚本，输出都会写入 `rydberg_chain/`。）`.mpack` 即 NetKet 的检查点/模型文件，内含变分态与优化状态，可用于恢复或继续训练。若要将 `.log` 转成便于阅读的摘要与表格，可在项目根目录执行：`python3 rydberg_chain/parse_vmc_log.py [log 路径]`，加 `-t` 可输出部分迭代步的表格。
+解析 log 并保存 CSV 时，路径与上述一致：不指定 log 时默认读 **`train/complex128/`** 下默认文件名，可用 `-p complex64` 改为读 **`train/complex64/`**；生成的 `*_parsed.csv` 与 `*_summary.csv` 会写在对应 log 所在目录。例如：`python3 rydberg_chain/parse_vmc_log.py`（默认 complex128）、`python3 rydberg_chain/parse_vmc_log.py -p complex64`，或显式指定：`python3 rydberg_chain/parse_vmc_log.py rydberg_chain/train/complex128/rydberg_L16_....log`。
 
-**说明**：若在**项目根目录**下看到 `rydberg_*.log` 或 `rydberg_*.mpack`，则为此前在 **complex64（单精度）** 精度下运行所生成；当前脚本已改为将输出写入 `rydberg_chain/`，且默认使用 **complex128（双精度）**。
+**说明**：训练与解析的读写路径统一为 **`rydberg_chain/train/complex128/`** 或 **`rydberg_chain/train/complex64/`**；若在项目根或 `rydberg_chain/` 下存在旧版 log/mpack，可忽略或移至对应 `train/<precision>/`。
 
 ---
 
