@@ -1,0 +1,1 @@
+# 训练输出目录：.log、.mpack 保存在 train/<complex64|complex128>/，解析得到的 CSV 同目录

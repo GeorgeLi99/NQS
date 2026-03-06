@@ -1,0 +1,2 @@
+log_file,n_iters,E_initial,E_final,sigma_E_final,accept_initial,accept_final,Mx_final,Mz_final,Ntot_final
+/mnt/d/0_code/0_nqs/long_range_ising/train/complex64/rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1.log,1000,-14.566669784662787,-14.56672159248491,0.00010247833822033817,0.08653704325358073,0.08432515462239583,-0.36683091718299465,0.031978607177734375,nan

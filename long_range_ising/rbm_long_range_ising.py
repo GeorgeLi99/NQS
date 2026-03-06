@@ -15,6 +15,7 @@ from netket import jax as nkjax
 import jax
 import jax.numpy as jnp
 import flax
+import flax.serialization
 import flax.linen as nn
 import optax as opx
 from flax import nnx
@@ -49,8 +50,16 @@ from netket.utils.group import PermutationGroup, Permutation
 J = 1.0 
 alpha_interaction = 2.0
 Omega = 1.0
-delta = 0.5
+delta = 0.0  # 纵场 detuning；设为 0 与 delta=0.5 的 run 区分，文件名中会含 delta
 print(f"Ising J = {J}, alpha_interaction = {alpha_interaction}, Omega = {Omega}, delta = {delta}")
+
+# --- 运算精度（与 rydberg_chain 一致：complex64 或 complex128）---
+PRECISION = "complex128"
+if PRECISION not in ("complex64", "complex128"):
+    raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
+dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
+dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
+print(f"Computation precision: {PRECISION}")
 
 L = 16
 Nc = L
@@ -71,10 +80,10 @@ hi = nk.hilbert.Spin(s=0.5,  N=g.n_nodes, #total_sz= 0,
 
 # Hamiltonian
 from netket.operator.spin import sigmax, sigmay, sigmaz
-Sigma_z = np.array([[1, 0], [0, -1],])
-Sigma_x = np.array([[0, 1], [1, 0],])
+Sigma_z = np.array([[1, 0], [0, -1],], dtype=dtype_np)
+Sigma_x = np.array([[0, 1], [1, 0],], dtype=dtype_np)
 
-H = nk.operator.LocalOperator(hi, dtype=complex)
+H = nk.operator.LocalOperator(hi, dtype=dtype_np)
 # H = (Omega/2) * sum_j sigma^x_j
 #     - delta * sum_j sigma^z_j
 #     + sum_{i<j} (J / r_{ij}^{alpha_interaction}) * sigma^z_i sigma^z_j
@@ -104,7 +113,7 @@ from netket.nn.activation import reim_selu
 # from jax.nn.initializers import normal
 model = nk.models.RBM(
     alpha=alpha_rbm, 
-    param_dtype=jnp.complex128, 
+    param_dtype=dtype_jnp, 
     use_hidden_bias=True,        
     kernel_init=nn.initializers.normal(stddev=0.01), 
     hidden_bias_init=nn.initializers.normal(stddev=0.01),
@@ -161,8 +170,8 @@ gs = nk.VMC(hamiltonian=op, optimizer=opt_const,
 print("VMC:",gs)
 
 # observable
-Mx = nk.operator.LocalOperator(hi, dtype=complex)
-Mz = nk.operator.LocalOperator(hi, dtype=complex)
+Mx = nk.operator.LocalOperator(hi, dtype=dtype_np)
+Mz = nk.operator.LocalOperator(hi, dtype=dtype_np)
 for j in range(0, L):
     Mx += (1/L)*sigmax(hi, j)
     Mz += (1/L)*sigmaz(hi, j)
@@ -171,12 +180,24 @@ local_obs = False
 if local_obs == False: 
     obs={'Mx': Mx, 'Mz': Mz, }
 
-n_iteration = 1000
-# GS calculation: 保存到 train/（.log 与 .mpack），与 rydberg_chain 一致
+n_iteration = 2000
+# 是否从同名字的 .mpack 恢复训练：True=存在则加载，False=始终从头训练
+LOAD_CHECKPOINT = False
+
+# GS calculation: .log 与 checkpoint (.mpack) 均保存到 train/complex64 或 train/complex128
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_train_dir = os.path.join(_script_dir, "train")
+_train_dir = os.path.join(_script_dir, "train", PRECISION)  # train/complex64 或 train/complex128
 os.makedirs(_train_dir, exist_ok=True)
-file_name = os.path.join(_train_dir, f"rbm_LongIsing_L={L}_J={J}_alphaInt={alpha_interaction}_alpha={alpha_rbm}_Cal{key_cal}")
+_file_base = f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_interaction}_alpha={alpha_rbm}_Cal{key_cal}"
+file_name = os.path.join(_train_dir, _file_base)
+checkpoint_path = os.path.join(_train_dir, _file_base + ".mpack")  # checkpoint 保存/加载路径
+if LOAD_CHECKPOINT and os.path.isfile(checkpoint_path):
+    with open(checkpoint_path, "rb") as f:
+        vs.variables = flax.serialization.from_bytes(vs.variables, f.read())
+    print(f"  Loaded checkpoint: {checkpoint_path}")
+elif LOAD_CHECKPOINT and not os.path.isfile(checkpoint_path):
+    print(f"  LOAD_CHECKPOINT=True 但未找到: {checkpoint_path}，从头训练")
 print("Number of iterations:", n_iteration)
-print("file name:", file_name)
-gs.run(out=file_name, n_iter=n_iteration, obs=obs,)
+print("Output dir (train/<precision>):", _train_dir)
+print("Log / checkpoint base:", file_name)
+gs.run(out=file_name, n_iter=n_iteration, obs=obs,)  # 写入 <file_name>.log 与 <file_name>.mpack 到同一目录

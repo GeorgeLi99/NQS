@@ -1,0 +1,3 @@
+run,log_file,n_iters,E_initial,E_final,sigma_E_final,accept_initial,accept_final,Mx_final,Mz_final,Ntot_final
+1,/mnt/d/0_code/0_nqs/long_range_ising/train/complex64/rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1.log,1000,8.017570734495166,-14.566722967273847,0.00013620235200544276,0.9909709294637045,0.0842447280883789,-0.36508202273761015,0.030635833740234375,nan
+2,/mnt/d/0_code/0_nqs/long_range_ising/train/complex64/rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1.log,1000,-14.566669784662787,-14.56672159248491,0.00010247833822033817,0.08653704325358073,0.08432515462239583,-0.36683091718299465,0.031978607177734375,nan
