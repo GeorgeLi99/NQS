@@ -172,8 +172,11 @@ if local_obs == False:
     obs={'Mx': Mx, 'Mz': Mz, }
 
 n_iteration = 1000
-# GS calculation
-file_name = f"data/rbm_LongIsing_L={L}_J={J}_alphaInt={alpha_interaction}_alpha={alpha_rbm}_Cal{key_cal}"
-print("Number of iterations:",n_iteration)
-print("file name:",file_name)
+# GS calculation: 保存到 train/（.log 与 .mpack），与 rydberg_chain 一致
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_train_dir = os.path.join(_script_dir, "train")
+os.makedirs(_train_dir, exist_ok=True)
+file_name = os.path.join(_train_dir, f"rbm_LongIsing_L={L}_J={J}_alphaInt={alpha_interaction}_alpha={alpha_rbm}_Cal{key_cal}")
+print("Number of iterations:", n_iteration)
+print("file name:", file_name)
 gs.run(out=file_name, n_iter=n_iteration, obs=obs,)

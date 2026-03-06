@@ -3,10 +3,12 @@
 将多次训练的 parsed/summary CSV 合并为一份大 CSV，便于画整条训练曲线（含微调续训）。
 
 用法:
-  python3 merge_vmc_csvs.py [目录] [--name 基名]
-  python3 merge_vmc_csvs.py rydberg_chain/train/complex128
+  python3 merge_vmc_csvs.py [目录] [--name 基名] [--precision complex64|complex128]
+  python3 merge_vmc_csvs.py --precision complex64
+  python3 merge_vmc_csvs.py rydberg_chain/train/complex64
   python3 merge_vmc_csvs.py rydberg_chain/train/complex128 --name rydberg_L16_delta0.5_Rb1.0_alpha6
 
+不指定目录时，默认用 train/<precision>（--precision 默认 complex128）。
 会扫描目录下 {name}_run1_parsed.csv, {name}_run2_parsed.csv, ...（按 run 编号排序），
 合并为：
   - {name}_merged_parsed.csv：列 run, global_iter, iter, Energy, sigma_E, Mx, Mz, Ntot, accept
@@ -100,7 +102,15 @@ def main():
         "directory",
         nargs="?",
         default=None,
-        help="存放 *_run*_parsed.csv 的目录（默认: 本脚本同目录下的 train/complex128）",
+        help="存放 *_run*_parsed.csv 的目录（不指定时用 train/<precision>）",
+    )
+    parser.add_argument(
+        "--precision",
+        "-p",
+        type=str,
+        choices=("complex64", "complex128"),
+        default="complex128",
+        help="精度子目录名，用于 train/<precision>（默认: complex128）；合并 complex64 数据时用 --precision complex64",
     )
     parser.add_argument(
         "--name",
@@ -114,7 +124,7 @@ def main():
     if args.directory:
         base_dir = os.path.abspath(args.directory)
     else:
-        base_dir = os.path.join(script_dir, "train", "complex128")
+        base_dir = os.path.join(script_dir, "train", args.precision)
 
     if not os.path.isdir(base_dir):
         print(f"错误: 目录不存在 {base_dir}", file=sys.stderr)

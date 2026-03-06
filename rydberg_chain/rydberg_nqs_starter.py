@@ -120,6 +120,14 @@ start_time = time.time()
 # These parameters define the Hamiltonian and system size.
 # Students should modify these to explore different regimes.
 
+# --- Computation precision (complex64 or complex128 only) ---
+PRECISION = "complex64"  # "complex64" (faster, less memory) or "complex128" (higher precision)
+if PRECISION not in ("complex64", "complex128"):
+    raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
+dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
+dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
+print(f"\nComputation precision: {PRECISION} (numpy: {dtype_np}, JAX: {dtype_jnp})")
+
 # System size
 L = 16  # Number of sites in the chain
 print(f"\nSystem size: L = {L}")
@@ -169,17 +177,17 @@ print(f"Hilbert space dimension: 2^{L} = {2**L}")
 
 print(f"\nConstructing Hamiltonian...")
 
-# Matrix representations of operators
+# Matrix representations of operators (use selected precision)
 # Occupation operator: n = |e⟩⟨e| = (1 + σᶻ)/2
 N_matrix = np.array([[1, 0],
-                     [0, 0]], dtype=complex)
+                     [0, 0]], dtype=dtype_np)
 
 # Pauli X: σˣ = |e⟩⟨g| + |g⟩⟨e|
 Sigma_x = np.array([[0, 1],
-                    [1, 0]], dtype=complex)
+                    [1, 0]], dtype=dtype_np)
 
 # Initialize Hamiltonian
-H = nk.operator.LocalOperator(hilbert, dtype=complex)
+H = nk.operator.LocalOperator(hilbert, dtype=dtype_np)
 
 # Term 1: Transverse field (Ω/2) Σᵢ σˣᵢ
 # This drives coherent transitions between |g⟩ and |e⟩
@@ -237,14 +245,14 @@ print(f"  RBM with α = {rbm_alpha} (hidden units = {rbm_alpha * L})")
 # The RBM represents log(ψ(σ)) as a neural network
 model = nk.models.RBM(
     alpha=rbm_alpha,
-    param_dtype=jnp.complex128,  # Use complex parameters
+    param_dtype=dtype_jnp,  # Use selected precision (complex64 or complex128)
     use_hidden_bias=True,
     kernel_init=nn.initializers.normal(stddev=0.01),
     hidden_bias_init=nn.initializers.normal(stddev=0.01),
 )
 
 print(f"  Model: Restricted Boltzmann Machine (RBM)")
-print(f"  Parameter type: complex128")
+print(f"  Parameter type: {PRECISION}")
 
 # ============================================================================
 # ADVANCED: Custom Neural Network Architectures (Optional)
@@ -433,19 +441,19 @@ print(f"  Number of parameters: {vstate.n_parameters}")
 print(f"\nDefining observables...")
 
 # Average magnetization in x-direction: ⟨Mˣ⟩ = (1/L) Σᵢ ⟨σˣᵢ⟩
-Mx = nk.operator.LocalOperator(hilbert, dtype=complex)
+Mx = nk.operator.LocalOperator(hilbert, dtype=dtype_np)
 for i in range(L):
     Mx += (1/L) * sigmax(hilbert, i)
 
 # Average magnetization in z-direction: ⟨Mᶻ⟩ = (1/L) Σᵢ ⟨σᶻᵢ⟩
 # This is the order parameter for the Ising transition
-Mz = nk.operator.LocalOperator(hilbert, dtype=complex)
+Mz = nk.operator.LocalOperator(hilbert, dtype=dtype_np)
 for i in range(L):
     Mz += (1/L) * sigmaz(hilbert, i)
 
 # Average occupation: ⟨n⟩ = (1/L) Σᵢ ⟨nᵢ⟩
 # Measures the density of Rydberg excitations
-Ntot = nk.operator.LocalOperator(hilbert, dtype=complex)
+Ntot = nk.operator.LocalOperator(hilbert, dtype=dtype_np)
 for i in range(L):
     Ntot += (1/L) * nk.operator.LocalOperator(hilbert, N_matrix, [i])
 
@@ -502,8 +510,8 @@ print("=" * 80)
 n_iterations = 1000  # Typical: 1000-5000 depending on convergence
 
 # Output directory: save .log and .mpack under rydberg_chain/train/<precision>/
-# Must match model param_dtype: "complex128" or "complex64"
-TRAIN_SUBDIR = "complex128"
+# Matches PRECISION: "complex64" or "complex128"
+TRAIN_SUBDIR = PRECISION
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 train_dir = os.path.join(_script_dir, "train", TRAIN_SUBDIR)
 os.makedirs(train_dir, exist_ok=True)

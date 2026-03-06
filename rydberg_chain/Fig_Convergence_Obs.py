@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 import sys
@@ -6,7 +7,7 @@ import scienceplots
 
 # 数据路径：优先使用 merge_vmc_csvs.py 合并后的 CSV；不存在时回退到 _run1_ 或单文件
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-DIR_DATA = os.path.join(_script_dir, "train", "complex128")
+
 BASENAME = "rydberg_L16_delta0.5_Rb1.0_alpha6"
 
 
@@ -25,6 +26,14 @@ def _resolve_summary_csv():
             return p
     return os.path.join(DIR_DATA, f"{BASENAME}_merged_summary.csv")
 
+
+# 命令行指定精度子目录，例如: python3 Fig_Convergence_Obs.py --precision complex64
+parser = argparse.ArgumentParser(description="绘制 VMC 收敛与观测量（从 train/<precision>/ 读 CSV）")
+parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default="complex64",
+                    help="数据所在子目录（默认: complex64）")
+args, _ = parser.parse_known_args()
+PRECISION = args.precision
+DIR_DATA = os.path.join(_script_dir, "train", PRECISION)
 
 PARSED_CSV = _resolve_parsed_csv()
 SUMMARY_CSV = _resolve_summary_csv()
@@ -80,6 +89,7 @@ if E0 is None:
 plot_key = "Energy_and_Obs"
 alpha = 6
 
+print("Precision (data dir):", PRECISION)
 print("Data:", PARSED_CSV)
 print("GS energy (E0):", E0)
 
