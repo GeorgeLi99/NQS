@@ -49,7 +49,7 @@ from netket.utils.group import PermutationGroup, Permutation
 # S=1/2 long-range Ising model with transverse field
 J = 1.0 
 alpha_interaction = 2.0
-Omega = 1.0
+Omega = 2.0
 delta = 0.0  # 纵场 detuning；设为 0 与 delta=0.5 的 run 区分，文件名中会含 delta
 print(f"Ising J = {J}, alpha_interaction = {alpha_interaction}, Omega = {Omega}, delta = {delta}")
 
@@ -170,15 +170,19 @@ gs = nk.VMC(hamiltonian=op, optimizer=opt_const,
 print("VMC:",gs)
 
 # observable
+# Mx = (1/L) Σⱼ ⟨σˣⱼ⟩,  Mz = (1/L) Σⱼ ⟨σᶻⱼ⟩
+# Mz_AFM = (1/L) Σⱼ (-1)ʲ ⟨σᶻⱼ⟩ 反铁磁序参量（参考文献）
 Mx = nk.operator.LocalOperator(hi, dtype=dtype_np)
 Mz = nk.operator.LocalOperator(hi, dtype=dtype_np)
+Mz_AFM = nk.operator.LocalOperator(hi, dtype=dtype_np)
 for j in range(0, L):
-    Mx += (1/L)*sigmax(hi, j)
-    Mz += (1/L)*sigmaz(hi, j)
+    Mx += (1/L) * sigmax(hi, j)
+    Mz += (1/L) * sigmaz(hi, j)
+    Mz_AFM += ((1/L) * (-1) ** j) * sigmaz(hi, j)
 
 local_obs = False
-if local_obs == False: 
-    obs={'Mx': Mx, 'Mz': Mz, }
+if local_obs == False:
+    obs = {"Mx": Mx, "Mz": Mz, "Mz_AFM": Mz_AFM}
 
 n_iteration = 2000
 # 是否从同名字的 .mpack 恢复训练：True=存在则加载，False=始终从头训练

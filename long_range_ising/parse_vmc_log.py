@@ -49,7 +49,7 @@ def get_energy_sigma(entry: dict, i: int) -> float:
 
 
 def get_obs_mean(entry: dict, i: int) -> float:
-    """从观测量条目（Mx/Mz/Ntot）中取第 i 步的 Mean（实部或标量）。"""
+    """从观测量条目（Mx/Mz/Mz_AFM/Ntot）中取第 i 步的 Mean（实部或标量）。"""
     mean = entry.get("Mean")
     if isinstance(mean, dict) and "real" in mean:
         arr = mean["real"]
@@ -57,6 +57,12 @@ def get_obs_mean(entry: dict, i: int) -> float:
     if isinstance(mean, (list, tuple)):
         return mean[i] if i < len(mean) else float("nan")
     return float("nan")
+
+
+def get_obs_sigma(entry: dict, i: int) -> float:
+    """从观测量条目中取第 i 步的 Sigma（误差/标准差），用于看 variance 量级。"""
+    sigma = entry.get("Sigma", [])
+    return sigma[i] if i < len(sigma) else float("nan")
 
 
 def get_acceptance(entry: dict, i: int) -> float:
@@ -105,20 +111,30 @@ def print_summary(data: dict, log_path: str) -> None:
             print(f"    最终: {format_number(a_final, 4)}")
             print()
 
-    obs_names = ["Mx", "Mz", "Ntot"]
-    obs_desc = {"Mx": "横磁化 (1/L)Σ⟨σˣ⟩", "Mz": "纵磁化 (1/L)Σ⟨σᶻ⟩", "Ntot": "占据数 (1/L)Σ⟨n⟩"}
-    print("  【观测量（最终步）】")
+    obs_names = ["Mx", "Mz", "Mz_AFM", "Ntot"]
+    obs_desc = {
+        "Mx": "横磁化 (1/L)Σ⟨σˣ⟩",
+        "Mz": "纵磁化 (1/L)Σ⟨σᶻ⟩",
+        "Mz_AFM": "反铁磁序参量 (1/L)Σ(-1)ʲ⟨σᶻⱼ⟩",
+        "Ntot": "占据数 (1/L)Σ⟨n⟩",
+    }
+    print("  【观测量（最终步，含 Sigma 便于看 variance）】")
     for name in obs_names:
         if name not in data:
             continue
         val = get_obs_mean(data[name], last)
+        sig = get_obs_sigma(data[name], last)
         desc = obs_desc.get(name, name)
-        print(f"    {name} ({desc}): {format_number(val)}")
+        print(f"    {name} ({desc}): {format_number(val)}  ±  {format_number(sig)}")
     print("=" * 60)
 
 
+# 观测量列表（与 rbm_long_range_ising 中 obs 一致；Ntot 可选）
+_OBS_COLS = ["Mx", "Mz", "Mz_AFM", "Ntot"]
+
+
 def get_table_rows(data: dict, steps: list) -> list[list]:
-    """返回指定步数的数据行。每行为 [iter, Energy, sigma_E, Mx, Mz, Ntot, accept]。"""
+    """返回指定步数的数据行。含 Energy, sigma_E，各观测量 mean/sigma，accept。"""
     E = data["Energy"]
     acc = data.get("acceptance", {})
     rows = []
@@ -127,39 +143,52 @@ def get_table_rows(data: dict, steps: list) -> list[list]:
             continue
         e_val = get_energy_mean(E, i)
         e_sig = get_energy_sigma(E, i)
-        mx = get_obs_mean(data["Mx"], i) if "Mx" in data else float("nan")
-        mz = get_obs_mean(data["Mz"], i) if "Mz" in data else float("nan")
-        ntot = get_obs_mean(data["Ntot"], i) if "Ntot" in data else float("nan")
+        row = [i, e_val, e_sig]
+        for name in _OBS_COLS:
+            if name in data:
+                row.append(get_obs_mean(data[name], i))
+                row.append(get_obs_sigma(data[name], i))
+            else:
+                row.append(float("nan"))
+                row.append(float("nan"))
         a = get_acceptance(acc, i) if acc else float("nan")
-        rows.append([i, e_val, e_sig, mx, mz, ntot, a])
+        row.append(a)
+        rows.append(row)
     return rows
+
+
+def _csv_headers() -> list[str]:
+    """解析/CSV 表头：iter, Energy, sigma_E, 各观测量 mean/sigma, accept。"""
+    h = ["iter", "Energy", "sigma_E"]
+    for name in _OBS_COLS:
+        h.append(name)
+        h.append(f"sigma_{name}")
+    h.append("accept")
+    return h
 
 
 def print_table(data: dict, steps: list) -> None:
     """打印指定步数的能量与观测量表格。"""
     rows = get_table_rows(data, steps)
-    headers = ["iter", "Energy", "σ(E)", "Mx", "Mz", "Ntot", "accept"]
-    col_widths = [6, 14, 10, 12, 12, 12, 8]
+    headers = _csv_headers()
+    col_widths = [6, 14, 10] + [12, 10] * len(_OBS_COLS) + [8]
     header_line = "  ".join(h.ljust(w) for h, w in zip(headers, col_widths))
     print(header_line)
     print("-" * len(header_line))
     for r in rows:
-        i, e_val, e_sig, mx, mz, ntot, a = r
-        row_str = [
-            str(i),
-            format_number(e_val, 5),
-            format_number(e_sig, 4),
-            format_number(mx, 5),
-            format_number(mz, 5),
-            format_number(ntot, 5),
-            format_number(a, 3),
-        ]
+        row_str = [str(r[0]), format_number(r[1], 5), format_number(r[2], 4)]
+        idx = 3
+        for _ in _OBS_COLS:
+            row_str.append(format_number(r[idx], 5))
+            row_str.append(format_number(r[idx + 1], 4))
+            idx += 2
+        row_str.append(format_number(r[-1], 3))
         line = "  ".join(s.ljust(w) for s, w in zip(row_str, col_widths))
         print(line)
 
 
 def get_summary_row(data: dict, log_path: str) -> tuple[list[str], list]:
-    """返回摘要的一行数据：(表头列表, 值列表)。"""
+    """返回摘要的一行数据：(表头列表, 值列表)。含各观测量 final 与 sigma。"""
     n = len(data["Energy"]["iters"])
     last = n - 1
     E = data["Energy"]
@@ -170,21 +199,23 @@ def get_summary_row(data: dict, log_path: str) -> tuple[list[str], list]:
     v = acc.get("value", acc.get("Mean", [])) if acc else []
     a_init = v[0] if isinstance(v, (list, tuple)) and len(v) > 0 else float("nan")
     a_final = v[last] if isinstance(v, (list, tuple)) and last < len(v) else (v[-1] if v else float("nan"))
-    mx = get_obs_mean(data["Mx"], last) if "Mx" in data else float("nan")
-    mz = get_obs_mean(data["Mz"], last) if "Mz" in data else float("nan")
-    ntot = get_obs_mean(data["Ntot"], last) if "Ntot" in data else float("nan")
     headers = [
         "log_file", "n_iters",
         "E_initial", "E_final", "sigma_E_final",
         "accept_initial", "accept_final",
-        "Mx_final", "Mz_final", "Ntot_final",
     ]
-    values = [
-        log_path, n,
-        e_init, e_final, sig_final,
-        a_init, a_final,
-        mx, mz, ntot,
-    ]
+    values = [log_path, n, e_init, e_final, sig_final, a_init, a_final]
+    for name in _OBS_COLS:
+        if name in data:
+            headers.append(f"{name}_final")
+            headers.append(f"sigma_{name}_final")
+            values.append(get_obs_mean(data[name], last))
+            values.append(get_obs_sigma(data[name], last))
+        else:
+            headers.append(f"{name}_final")
+            headers.append(f"sigma_{name}_final")
+            values.append(float("nan"))
+            values.append(float("nan"))
     return headers, values
 
 
@@ -211,11 +242,11 @@ def _get_next_run_number(base_dir: str, name: str) -> int:
 
 
 def save_to_csv(data: dict, csv_path: str) -> None:
-    """将全部迭代步数据写入 CSV 文件。"""
+    """将全部迭代步数据写入 CSV 文件（含各观测量 mean 与 sigma）。"""
     n = len(data["Energy"]["iters"])
     steps = list(range(n))
     rows = get_table_rows(data, steps)
-    csv_headers = ["iter", "Energy", "sigma_E", "Mx", "Mz", "Ntot", "accept"]
+    csv_headers = _csv_headers()
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(csv_headers)

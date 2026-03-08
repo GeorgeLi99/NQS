@@ -64,14 +64,18 @@ def load_convergence_from_csv(parsed_path: str, E0: float):
 
 
 def load_observables_from_csv(parsed_path: str):
-    """从 parsed/merged CSV 读取迭代轴、Mx、Mz（本模型无 Ntot）。"""
+    """从 parsed/merged CSV 读取迭代轴、Mx、Mz、Mz_AFM 及可选的 sigma 列（便于看 variance）。"""
     cols = _read_parsed_csv(parsed_path)
     iters = cols["global_iter"] if "global_iter" in cols else cols["iter"]
     mx = cols.get("Mx")
     mz = cols.get("Mz")
+    mz_afm = cols.get("Mz_AFM")
+    sigma_mx = cols.get("sigma_Mx")
+    sigma_mz = cols.get("sigma_Mz")
+    sigma_mz_afm = cols.get("sigma_Mz_AFM")
     if mx is None or mz is None:
         raise ValueError("CSV 需包含 Mx, Mz 列")
-    return iters, mx, mz
+    return iters, mx, mz, mz_afm, sigma_mx, sigma_mz, sigma_mz_afm
 
 
 def load_E0_from_summary(summary_path: str):
@@ -102,8 +106,8 @@ print("GS energy (E0):", E0)
 iters, energy, relative_error = load_convergence_from_csv(PARSED_CSV, E0)
 data1 = (iters, relative_error)
 
-iters_obs, mx, mz = load_observables_from_csv(PARSED_CSV)
-dataObs1 = (iters_obs, mx, mz)
+iters_obs, mx, mz, mz_afm, sigma_mx, sigma_mz, sigma_mz_afm = load_observables_from_csv(PARSED_CSV)
+dataObs1 = (iters_obs, mx, mz, mz_afm, sigma_mx, sigma_mz, sigma_mz_afm)
 
 colors = ["#085293", "#90d4bd", "#f58b47", "#fcce25", "#6300a7", "#a51f99", "#b7ea63"]
 
@@ -132,10 +136,22 @@ ax1.tick_params("both", which="minor", length=2, direction="in")
 ax2 = plt.subplot(122)
 ax2.plot(data1[0], np.abs(dataObs1[1]), color=colors[3], lw=2.0,
          label=rf"$|M_x|,\, \alpha_{{int}}=$" + f" {alpha_int}")
+if dataObs1[4] is not None:
+    ax2.fill_between(data1[0], np.abs(dataObs1[1]) - dataObs1[4], np.abs(dataObs1[1]) + dataObs1[4],
+                     color=colors[3], alpha=0.2)
 ax2.plot(data1[0], np.abs(dataObs1[2]), color=colors[4], lw=2.0,
          label=rf"$|M_z|,\, \alpha_{{int}}=$" + f" {alpha_int}")
+if dataObs1[5] is not None:
+    ax2.fill_between(data1[0], np.abs(dataObs1[2]) - dataObs1[5], np.abs(dataObs1[2]) + dataObs1[5],
+                     color=colors[4], alpha=0.2)
+if dataObs1[3] is not None:
+    ax2.plot(data1[0], np.abs(dataObs1[3]), color=colors[5], lw=2.0,
+             label=rf"$|M_z^{{AFM}}|,\, \alpha_{{int}}=$" + f" {alpha_int}")
+    if dataObs1[6] is not None:
+        ax2.fill_between(data1[0], np.abs(dataObs1[3]) - dataObs1[6], np.abs(dataObs1[3]) + dataObs1[6],
+                         color=colors[5], alpha=0.2)
 
-ax2.set_ylabel(r'$M_x,\, M_z$', fontsize=25)
+ax2.set_ylabel(r'$M_x,\, M_z,\, M_z^{\mathrm{AFM}}$', fontsize=25)
 ax2.set_xlabel("Iteration", fontsize=25)
 ax2.set_xlim((0, 2000))
 ax2.set_ylim((1e-5, 1.0))
