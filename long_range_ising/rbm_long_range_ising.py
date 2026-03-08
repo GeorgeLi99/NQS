@@ -46,30 +46,46 @@ from jax import vmap
 
 from netket.utils.group import PermutationGroup, Permutation
 
-# S=1/2 long-range Ising model with transverse field
-J = 1.0 
-alpha_interaction = 2.0
-Omega = 2.0
-delta = 0.0  # 纵场 detuning；设为 0 与 delta=0.5 的 run 区分，文件名中会含 delta
-print(f"Ising J = {J}, alpha_interaction = {alpha_interaction}, Omega = {Omega}, delta = {delta}")
-
-# --- 运算精度（与 rydberg_chain 一致：complex64 或 complex128）---
-PRECISION = "complex128"
+# ========== 超参数（优先修改）==========
+# 1. 运算精度：complex64（省显存/快）或 complex128（高精度）；与 parse/merge/Fig 的 DIGIT 一致
+PRECISION = "complex64"
 if PRECISION not in ("complex64", "complex128"):
     raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
 dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
 dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
-print(f"Computation precision: {PRECISION}")
 
+# 2. 哈密顿量（长程横场 Ising）H = (Ω/2)Σσˣ - δΣσᶻ + Σ_{i<j} (J/r^α) σᶻᵢσᶻⱼ
+J = 1.0
+alpha_interaction = 2.0
+Omega = 2.0
+delta = 0.0  # 纵场 detuning；文件名中会含 delta，便于与 delta=0.5 等区分
+
+# 3. 系统与 RBM
 L = 16
-Nc = L
-print("number of cells:",Nc)
 alpha_rbm = 4
-print("Feature alpha=",alpha_rbm)
 use_bias = False
-print("use_bias=",use_bias)
+key_cal = 1  # 用于输出文件名 Cal{key_cal}
 
-key_cal = 1 # val_cal_times
+# 4. 训练与 VMC
+n_iteration = 2000
+LOAD_CHECKPOINT = False  # True=存在同名校验点则加载续训
+val_learning_rate = 0.01
+val_diagonal_shfit = 0.0001  # SR 对角 shift
+n_warmup = 50  # 学习率 / diag_shift schedule 的 warmup 步数（若用 decay 优化器）
+diag_end_value = 1e-3
+learning_end_value = 4e-3
+N_samples = 1024 * 32
+n_chains_per_rank = 512
+n_discard_per_chain = 32
+chunk_size = 1024 * 8
+
+# ---------- 以下为派生，一般无需改 ----------
+Nc = L
+print(f"Computation precision: {PRECISION}")
+print(f"Ising J = {J}, alpha_interaction = {alpha_interaction}, Omega = {Omega}, delta = {delta}")
+print("number of cells:", Nc)
+print("Feature alpha =", alpha_rbm)
+print("use_bias =", use_bias)
 
 # Graph
 g = nk.graph.Chain(length=L, pbc=True)
@@ -120,24 +136,16 @@ model = nk.models.RBM(
 )
 print("RBM: alpha = ", alpha_rbm)
 
-# VMC hyper-parameters
-n_warmup = 50
-diag_end_value = 1E-3
-learning_end_value = 4E-3
-learning_rate = opx.warmup_cosine_decay_schedule(init_value=1E-2, peak_value=4E-2, 
-                                                 warmup_steps=n_warmup, decay_steps=(200-n_warmup), 
-                                                 end_value=learning_end_value, exponent= 1.0 ) 
-diag_shift = opx.warmup_cosine_decay_schedule(init_value=5E-2, peak_value=5E-2, 
-                                                 warmup_steps=n_warmup, decay_steps=(200-n_warmup), 
-                                                 end_value=diag_end_value, exponent= 1.0 )
+# 学习率 / SR diag_shift 的 schedule（若改用 opt_decay 时使用）
+learning_rate = opx.warmup_cosine_decay_schedule(init_value=1e-2, peak_value=4e-2,
+                                                 warmup_steps=n_warmup, decay_steps=(200 - n_warmup),
+                                                 end_value=learning_end_value, exponent=1.0)
+diag_shift = opx.warmup_cosine_decay_schedule(init_value=5e-2, peak_value=5e-2,
+                                             warmup_steps=n_warmup, decay_steps=(200 - n_warmup),
+                                             end_value=diag_end_value, exponent=1.0)
 
-# Optimizer 
-# val_learning_rate = 0.001
-val_learning_rate = 0.01
-# val_diagonal_scale = 0.0001
-val_diagonal_shfit = 0.0001 
-print(f"constant learning rate: eta = {val_learning_rate}") 
-# print(f"constant diagonal scale: epsilon_1 = {val_diagonal_scale}")
+# Optimizer
+print(f"constant learning rate: eta = {val_learning_rate}")
 print(f"constant diagonal shift: epsilon_2 = {val_diagonal_shfit}")
 
 # Stochastic Gradient Descent
@@ -151,15 +159,12 @@ sr = nk.optimizer.SR(diag_shift=val_diagonal_shfit, holomorphic = True,)
 print("SR preconditioner:",sr)
 
 # MC sampler
-N_samples = 1024*32
-#sampler = nk.sampler.MetropolisExchange(hilbert=hi, graph=g, n_chains=N_samples, sweep_size= g.n_nodes, d_max=2,
-#    reset_chains = True,)
-sampler = nk.sampler.MetropolisLocal(hilbert=hi, n_chains_per_rank=512, sweep_size=4*L)
+sampler = nk.sampler.MetropolisLocal(hilbert=hi, n_chains_per_rank=n_chains_per_rank, sweep_size=4 * L)
 print("Sampler: ", sampler)
 
 # VQS
 vs = nk.vqs.MCState(sampler=sampler, model=model,
-    n_discard_per_chain=32, chunk_size=1024*8, n_samples= N_samples,  )
+                    n_discard_per_chain=n_discard_per_chain, chunk_size=chunk_size, n_samples=N_samples)
 print("Variational state:",vs)
 print("Number of parameters:", vs.n_parameters)
 
@@ -184,11 +189,7 @@ local_obs = False
 if local_obs == False:
     obs = {"Mx": Mx, "Mz": Mz, "Mz_AFM": Mz_AFM}
 
-n_iteration = 2000
-# 是否从同名字的 .mpack 恢复训练：True=存在则加载，False=始终从头训练
-LOAD_CHECKPOINT = False
-
-# GS calculation: .log 与 checkpoint (.mpack) 均保存到 train/complex64 或 train/complex128
+# GS calculation: .log 与 checkpoint (.mpack) 均保存到 train/<PRECISION>/
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _train_dir = os.path.join(_script_dir, "train", PRECISION)  # train/complex64 或 train/complex128
 os.makedirs(_train_dir, exist_ok=True)

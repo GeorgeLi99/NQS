@@ -13,7 +13,25 @@ import matplotlib.pyplot as plt
 import scienceplots
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-BASENAME = "rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1"
+
+# 默认精度子目录，与 parse_vmc_log / merge_vmc_csvs 一致
+DIGIT = "complex64"
+
+
+def _basename_from_delta(delta: float, L: int = 16) -> str:
+    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+
+
+parser = argparse.ArgumentParser(description="绘制 Long-range Ising VMC 收敛与观测量（从 train/<precision>/ 读 CSV）")
+parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default=DIGIT,
+                    help=f"数据所在子目录（默认: {DIGIT}）")
+parser.add_argument("--delta", type=float, default=0.0,
+                    help="纵场 detuning，用于数据基名与图标题（默认: 0.0）")
+args, _ = parser.parse_known_args()
+PRECISION = args.precision
+DELTA = args.delta
+DIR_DATA = os.path.join(_script_dir, "train", PRECISION)
+BASENAME = _basename_from_delta(DELTA)
 
 
 def _resolve_parsed_csv():
@@ -31,13 +49,6 @@ def _resolve_summary_csv():
             return p
     return os.path.join(DIR_DATA, f"{BASENAME}_merged_summary.csv")
 
-
-parser = argparse.ArgumentParser(description="绘制 Long-range Ising VMC 收敛与观测量（从 train/<precision>/ 读 CSV）")
-parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default="complex64",
-                    help="数据所在子目录（默认: complex64）")
-args, _ = parser.parse_known_args()
-PRECISION = args.precision
-DIR_DATA = os.path.join(_script_dir, "train", PRECISION)
 
 PARSED_CSV = _resolve_parsed_csv()
 SUMMARY_CSV = _resolve_summary_csv()
@@ -116,7 +127,7 @@ plt.figure(figsize=(2 * 8.6, 6.45))
 
 ax1 = plt.subplot(121)
 ax1.plot(data1[0], data1[1], color=colors[0], lw=2.0,
-         label=rf"$\delta=0.5,\, \alpha_{{int}}=$" + f" {alpha_int}")
+         label=rf"$\delta={DELTA},\, \alpha_{{int}}=$" + f" {alpha_int}")
 
 ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$', fontsize=25)
 ax1.set_xlabel("Iteration", fontsize=25)
@@ -161,14 +172,14 @@ ax2.legend(loc="upper right", fontsize=25, frameon=False)
 ax2.tick_params("both", which="major", length=4, direction="in")
 ax2.tick_params("both", which="minor", length=2, direction="in")
 
-plt.suptitle(r"Long-range Ising: $\delta = 0.5,\, L=$" + f"{L}, RBM, " + r"$\alpha_{int}=$" + f"{alpha_int}", fontsize=25)
+plt.suptitle(r"Long-range Ising: $\delta = $" + f"{DELTA}, " + f"$L=${L}, RBM, " + r"$\alpha_{int}=$" + f"{alpha_int}", fontsize=25)
 plt.subplots_adjust(hspace=0.25, wspace=0.25)
 plt.tight_layout()
 
 out_dir = os.path.join(_script_dir, "figure")
 os.makedirs(out_dir, exist_ok=True)
-basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta=0.5_L={L}_{plot_key}.pdf"
-basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta=0.5_L={L}_{plot_key}.svg"
+basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.svg"
 
 
 def _save_fig(path: str) -> bool:

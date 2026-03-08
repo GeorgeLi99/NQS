@@ -6,7 +6,9 @@
 用法:
   python3 merge_vmc_csvs.py [目录] [--name 基名] [--precision complex64|complex128]
   python3 merge_vmc_csvs.py --precision complex64
-  python3 merge_vmc_csvs.py long_range_ising/train/complex64 --name rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1
+  python3 merge_vmc_csvs.py --delta 0   # 合并 delta=0 的 CSV（默认）
+  python3 merge_vmc_csvs.py --delta 0.5 --precision complex128
+  python3 merge_vmc_csvs.py long_range_ising/train/complex64 --name rbm_LongIsing_L=16_J=1.0_delta=0.0_...
 
 不指定目录时，默认用 train/<precision>（--precision 默认 complex64）。
 会扫描目录下 {name}_run1_parsed.csv, {name}_run2_parsed.csv, ...，
@@ -19,7 +21,13 @@ import os
 import re
 import sys
 
-DEFAULT_BASENAME = "rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1"
+# 默认精度子目录，与 parse_vmc_log / rbm_long_range_ising 一致
+DIGIT = "complex64"
+
+
+def _basename_from_delta(delta: float, L: int = 16) -> str:
+    """与 rbm_long_range_ising 输出文件名一致。"""
+    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
 
 
 def _find_run_files(base_dir: str, name: str, suffix: str):
@@ -104,16 +112,24 @@ def main():
         "-p",
         type=str,
         choices=("complex64", "complex128"),
-        default="complex128",
-        help="精度子目录名，用于 train/<precision>（默认: complex64）",
+        default=DIGIT,
+        help=f"精度子目录名，用于 train/<precision>（默认: {DIGIT}）",
+    )
+    parser.add_argument(
+        "--delta",
+        type=float,
+        default=0.0,
+        help="纵场 detuning，用于构造默认基名，与 rbm_long_range_ising 一致（默认: 0.0）",
     )
     parser.add_argument(
         "--name",
         type=str,
-        default=DEFAULT_BASENAME,
-        help=f"文件名基名，不含 _runN（默认: {DEFAULT_BASENAME}）",
+        default=None,
+        help="文件名基名，不含 _runN；不指定时由 --delta 构造",
     )
     args = parser.parse_args()
+
+    name = args.name if args.name is not None else _basename_from_delta(args.delta)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     if args.directory:
@@ -125,7 +141,6 @@ def main():
         print(f"错误: 目录不存在 {base_dir}", file=sys.stderr)
         sys.exit(1)
 
-    name = args.name
     out_parsed = os.path.join(base_dir, f"{name}_merged_parsed.csv")
     out_summary = os.path.join(base_dir, f"{name}_merged_summary.csv")
 

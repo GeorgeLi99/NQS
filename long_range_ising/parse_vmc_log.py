@@ -5,8 +5,9 @@
 
 用法:
   python3 parse_vmc_log.py [log 文件路径]
-  python3 parse_vmc_log.py   # 默认解析 train/<precision>/rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1.log
-  python3 parse_vmc_log.py --precision complex64
+  python3 parse_vmc_log.py   # 默认解析 train/<precision>/rbm_LongIsing_L=16_J=1.0_delta=0.0_... .log
+  python3 parse_vmc_log.py --delta 0 --precision complex64
+  python3 parse_vmc_log.py --delta 0.5   # 处理 delta=0.5 的 log
 
 输出:
   - 运行概览（迭代数、最终能量与误差、接受率等）
@@ -22,8 +23,11 @@ import os
 import re
 import sys
 
-# 与 rbm_long_range_ising.py 输出一致
-DEFAULT_BASENAME = "rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1"
+DIGIT="complex64"
+
+# 与 rbm_long_range_ising.py 输出一致（文件名含 delta）
+def _basename_from_delta(delta: float, L: int = 16) -> str:
+    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
 
 
 def load_log(path: str) -> dict:
@@ -267,9 +271,9 @@ def main():
     parser.add_argument(
         "-p", "--precision",
         type=str,
-        default="complex64",
+        default=DIGIT,
         choices=("complex128", "complex64"),
-        help="未指定 log 时使用的精度子目录（默认: complex64）",
+        help=f"未指定 log 时使用的精度子目录（默认: {DIGIT}）",
     )
     parser.add_argument(
         "-t", "--table",
@@ -302,18 +306,26 @@ def main():
         help="第几次训练结果，用于文件名 name_runN_parsed.csv",
     )
     parser.add_argument(
+        "--delta",
+        type=float,
+        default=0.0,
+        help="纵场 detuning，用于构造默认 log/CSV 基名，与 rbm_long_range_ising 一致（默认: 0.0）",
+    )
+    parser.add_argument(
         "--name",
         type=str,
-        default=DEFAULT_BASENAME,
-        help=f"默认 log/CSV 基名（默认: {DEFAULT_BASENAME}）",
+        default=None,
+        help="log/CSV 基名；不指定时由 --delta 构造（如 delta=0 → rbm_LongIsing_L=16_J=1.0_delta=0.0_...）",
     )
     args = parser.parse_args()
+
+    name = args.name if args.name is not None else _basename_from_delta(args.delta)
 
     if args.log_file:
         log_path = os.path.abspath(args.log_file)
     else:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(script_dir, "train", args.precision, args.name + ".log")
+        log_path = os.path.join(script_dir, "train", args.precision, name + ".log")
 
     if not os.path.isfile(log_path):
         print(f"错误: 未找到文件 {log_path}", file=sys.stderr)
@@ -346,10 +358,10 @@ def main():
                 summary_path = os.path.join(base_dir, f"{base_name}_summary.csv")
         else:
             base_dir = os.path.dirname(os.path.abspath(log_path))
-            name = os.path.splitext(os.path.basename(log_path))[0]
-            run = args.run if args.run is not None else _get_next_run_number(base_dir, name)
-            csv_path = os.path.join(base_dir, f"{name}_run{run}_parsed.csv")
-            summary_path = os.path.join(base_dir, f"{name}_run{run}_summary.csv")
+            base_name = os.path.splitext(os.path.basename(log_path))[0]
+            run = args.run if args.run is not None else _get_next_run_number(base_dir, base_name)
+            csv_path = os.path.join(base_dir, f"{base_name}_run{run}_parsed.csv")
+            summary_path = os.path.join(base_dir, f"{base_name}_run{run}_summary.csv")
             print(f"\n  本次为第 {run} 次训练结果，保存为 *_run{run}_*.csv")
         save_to_csv(data, csv_path)
         save_summary_csv(data, log_path, summary_path)

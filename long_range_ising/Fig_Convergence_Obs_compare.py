@@ -5,6 +5,7 @@
 数据路径：long_range_ising/train/<precision>/ 下 _merged_parsed.csv
 """
 
+import argparse
 import csv
 import os
 import sys
@@ -14,7 +15,18 @@ import scienceplots
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 TRAIN_DIR = os.path.join(_script_dir, "train")
-BASENAME = "rbm_LongIsing_L=16_J=1.0_alphaInt=2.0_alpha=4_Cal1"
+
+
+def _basename_from_delta(delta: float, L: int = 16) -> str:
+    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+
+
+# 命令行：--delta 指定纵场，用于数据基名与图标题（默认 0.0）
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--delta", type=float, default=0.0, help="纵场 detuning（默认: 0.0）")
+_delta_args, _ = _parser.parse_known_args()
+DELTA = _delta_args.delta
+BASENAME = _basename_from_delta(DELTA)
 
 
 def _resolve_parsed_csv(dir_path: str):
@@ -146,14 +158,14 @@ ax2.legend(loc="upper right", fontsize=20, frameon=False)
 ax2.tick_params("both", which="major", length=4, direction="in")
 ax2.tick_params("both", which="minor", length=2, direction="in")
 
-plt.suptitle(r"Long-range Ising: $\delta = 0.5,\, L=$" + f"{L}, RBM, " + r"$\alpha_{int}=$" + f"{alpha_int} (complex128 vs complex64)", fontsize=25)
+plt.suptitle(r"Long-range Ising: $\delta = $" + f"{DELTA}, " + f"$L=${L}, RBM, " + r"$\alpha_{int}=$" + f"{alpha_int} (complex128 vs complex64)", fontsize=25)
 plt.subplots_adjust(hspace=0.25, wspace=0.25)
 plt.tight_layout()
 
 out_dir = os.path.join(_script_dir, "figure")
 os.makedirs(out_dir, exist_ok=True)
-basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta=0.5_L={L}_{plot_key}.pdf"
-basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta=0.5_L={L}_{plot_key}.svg"
+basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.svg"
 
 
 def _save_fig(path: str) -> bool:
