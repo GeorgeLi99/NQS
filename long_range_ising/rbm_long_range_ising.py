@@ -48,15 +48,15 @@ from netket.utils.group import PermutationGroup, Permutation
 
 # ========== 超参数（优先修改）==========
 # 1. 运算精度：complex64（省显存/快）或 complex128（高精度）；与 parse/merge/Fig 的 DIGIT 一致
-PRECISION = "complex64"
+PRECISION = "complex128"
 if PRECISION not in ("complex64", "complex128"):
     raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
 dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
 dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
 
 # 2. 哈密顿量（长程横场 Ising）H = (Ω/2)Σσˣ - δΣσᶻ + Σ_{i<j} (J/r^α) σᶻᵢσᶻⱼ
-J = 1.0
-alpha_interaction = 2.0
+J = 2.0
+alpha_interaction = 0.5
 Omega = 2.0
 delta = 0.0  # 纵场 detuning；文件名中会含 delta，便于与 delta=0.5 等区分
 
@@ -189,9 +189,10 @@ local_obs = False
 if local_obs == False:
     obs = {"Mx": Mx, "Mz": Mz, "Mz_AFM": Mz_AFM}
 
-# GS calculation: .log 与 checkpoint (.mpack) 均保存到 train/<PRECISION>/
+# GS calculation: train/<PRECISION>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/ 下存放同参数 checkpoint 与 CSV
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_train_dir = os.path.join(_script_dir, "train", PRECISION)  # train/complex64 或 train/complex128
+_param_subdir = f"L{L}_J{J}_delta{delta}_alphaInt{alpha_interaction}"
+_train_dir = os.path.join(_script_dir, "train", PRECISION, _param_subdir)
 os.makedirs(_train_dir, exist_ok=True)
 _file_base = f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_interaction}_alpha={alpha_rbm}_Cal{key_cal}"
 file_name = os.path.join(_train_dir, _file_base)
@@ -203,6 +204,7 @@ if LOAD_CHECKPOINT and os.path.isfile(checkpoint_path):
 elif LOAD_CHECKPOINT and not os.path.isfile(checkpoint_path):
     print(f"  LOAD_CHECKPOINT=True 但未找到: {checkpoint_path}，从头训练")
 print("Number of iterations:", n_iteration)
-print("Output dir (train/<precision>):", _train_dir)
-print("Log / checkpoint base:", file_name)
-gs.run(out=file_name, n_iter=n_iteration, obs=obs,)  # 写入 <file_name>.log 与 <file_name>.mpack 到同一目录
+print("Output dir (log + checkpoint):", _train_dir)
+print("  Log:", file_name + ".log")
+print("  Checkpoint:", checkpoint_path)
+gs.run(out=file_name, n_iter=n_iteration, obs=obs,)  # 写入 <file_name>.log 与 <file_name>.mpack 到同一参数子目录

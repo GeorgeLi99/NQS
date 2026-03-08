@@ -509,16 +509,16 @@ print("=" * 80)
 # Number of optimization iterations
 n_iterations = 1000  # Typical: 1000-5000 depending on convergence
 
-# Output directory: save .log and .mpack under rydberg_chain/train/<precision>/
-# Matches PRECISION: "complex64" or "complex128"
-TRAIN_SUBDIR = PRECISION
+# Output directory: train/<precision>/L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/ 下存放同参数 checkpoint 与 CSV
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-train_dir = os.path.join(_script_dir, "train", TRAIN_SUBDIR)
+# 与 parse_vmc_log / merge_vmc_csvs / Fig 一致：alpha 用浮点格式（如 6.0）保证子目录名一致
+_param_subdir = f"L{L}_Rb{Rb}_delta{delta}_alpha{float(alpha_interaction)}"
+train_dir = os.path.join(_script_dir, "train", PRECISION, _param_subdir)
 os.makedirs(train_dir, exist_ok=True)
-output_file = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}")
+output_file = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{float(alpha_interaction)}")
 
-# Optional: load checkpoint to resume training. Set to .mpack path (under train/<precision>/) or None to train from scratch.
-LOAD_CHECKPOINT = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha_interaction}.mpack")  # e.g. os.path.join(train_dir, "rydberg_L16_delta0.5_Rb1.0_alpha6.mpack")
+# Optional: load checkpoint to resume training. .mpack 与 .log 均保存在同一参数子目录 train/<precision>/<param_subdir>/
+LOAD_CHECKPOINT = os.path.join(train_dir, f"rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{float(alpha_interaction)}.mpack")
 
 if LOAD_CHECKPOINT is not None and os.path.isfile(LOAD_CHECKPOINT):
     with open(LOAD_CHECKPOINT, "rb") as f:
@@ -527,7 +527,9 @@ if LOAD_CHECKPOINT is not None and os.path.isfile(LOAD_CHECKPOINT):
     print(f"  Number of parameters: {vstate.n_parameters}")
 
 print(f"  Iterations: {n_iterations}")
-print(f"  Output file: {output_file}.log")
+print(f"  Output dir (log + checkpoint): {train_dir}")
+print(f"  Log: {output_file}.log")
+print(f"  Checkpoint: {output_file}.mpack")
 print(f"\nOptimizing... (this may take several minutes)")
 
 # Create VMC driver

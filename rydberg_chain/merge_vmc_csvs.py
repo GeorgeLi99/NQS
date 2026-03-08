@@ -22,6 +22,13 @@ import os
 import re
 import sys
 
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex128"
+DEFAULT_L = 16
+DEFAULT_Rb = 1.0
+DEFAULT_DELTA = 0.5
+DEFAULT_ALPHA = 6.0
+
 
 def _find_run_files(base_dir: str, name: str, suffix: str):
     """列出 {name}_run{N}{suffix}.csv，返回 [(N, path), ...] 按 N 排序。"""
@@ -109,28 +116,33 @@ def main():
         "-p",
         type=str,
         choices=("complex64", "complex128"),
-        default="complex128",
-        help="精度子目录名，用于 train/<precision>（默认: complex128）；合并 complex64 数据时用 --precision complex64",
+        default=DEFAULT_PRECISION,
+        help=f"精度子目录名（默认: {DEFAULT_PRECISION}）",
     )
+    parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长（默认: {DEFAULT_L}）")
+    parser.add_argument("--Rb", type=float, default=DEFAULT_Rb, help=f"Blockade radius（默认: {DEFAULT_Rb}）")
+    parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"Detuning（默认: {DEFAULT_DELTA}）")
+    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
     parser.add_argument(
         "--name",
         type=str,
-        default="rydberg_L16_delta0.5_Rb1.0_alpha6",
-        help="文件名基名，不含 _runN（默认: rydberg_L16_delta0.5_Rb1.0_alpha6）",
+        default=None,
+        help="文件名基名；不指定时由 L/Rb/delta/alpha 构造",
     )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    param_subdir = f"L{args.L}_Rb{args.Rb}_delta{args.delta}_alpha{args.alpha}"
+    name = args.name if args.name is not None else f"rydberg_L{args.L}_delta{args.delta}_Rb{args.Rb}_alpha{args.alpha}"
     if args.directory:
         base_dir = os.path.abspath(args.directory)
     else:
-        base_dir = os.path.join(script_dir, "train", args.precision)
+        base_dir = os.path.join(script_dir, "train", args.precision, param_subdir)
 
     if not os.path.isdir(base_dir):
         print(f"错误: 目录不存在 {base_dir}", file=sys.stderr)
         sys.exit(1)
 
-    name = args.name
     out_parsed = os.path.join(base_dir, f"{name}_merged_parsed.csv")
     out_summary = os.path.join(base_dir, f"{name}_merged_summary.csv")
 

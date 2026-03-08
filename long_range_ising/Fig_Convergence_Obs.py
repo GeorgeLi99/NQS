@@ -14,24 +14,35 @@ import scienceplots
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 
-# 默认精度子目录，与 parse_vmc_log / merge_vmc_csvs 一致
-DIGIT = "complex64"
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex64"
+DEFAULT_L = 16
+DEFAULT_J = 1.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA = 2.0
 
 
-def _basename_from_delta(delta: float, L: int = 16) -> str:
-    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"L{L}_J{J}_delta{delta}_alphaInt{alpha_int}"
 
 
-parser = argparse.ArgumentParser(description="绘制 Long-range Ising VMC 收敛与观测量（从 train/<precision>/ 读 CSV）")
-parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default=DIGIT,
-                    help=f"数据所在子目录（默认: {DIGIT}）")
-parser.add_argument("--delta", type=float, default=0.0,
-                    help="纵场 detuning，用于数据基名与图标题（默认: 0.0）")
+def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
+
+
+parser = argparse.ArgumentParser(description="绘制 Long-range Ising VMC 收敛与观测量")
+parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default=DEFAULT_PRECISION,
+                    help=f"精度子目录（默认: {DEFAULT_PRECISION}）")
+parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长（默认: {DEFAULT_L}）")
+parser.add_argument("--J", type=float, default=DEFAULT_J, help=f"耦合强度（默认: {DEFAULT_J}）")
+parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"纵场 detuning（默认: {DEFAULT_DELTA}）")
+parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
 args, _ = parser.parse_known_args()
 PRECISION = args.precision
+_param_subdir = _param_subdir_from_params(args.L, args.J, args.delta, args.alpha)
+DIR_DATA = os.path.join(_script_dir, "train", PRECISION, _param_subdir)
+BASENAME = _basename_from_params(args.L, args.J, args.delta, args.alpha)
 DELTA = args.delta
-DIR_DATA = os.path.join(_script_dir, "train", PRECISION)
-BASENAME = _basename_from_delta(DELTA)
 
 
 def _resolve_parsed_csv():
@@ -102,8 +113,8 @@ def load_E0_from_summary(summary_path: str):
 
 
 # main
-L = 16
-alpha_int = 2.0
+L = args.L
+alpha_int = args.alpha
 plot_key = "Energy_and_Obs"
 
 E0 = load_E0_from_summary(SUMMARY_CSV)

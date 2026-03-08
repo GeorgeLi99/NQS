@@ -8,34 +8,45 @@
 
 ## 项目结构
 
+两套脚本的**路径约定一致**：训练产生的 `.log`、`.mpack`（checkpoint）与解析/合并得到的 CSV 均按**参数子目录**存放，便于同一组参数（L、δ、α 等）的 log、checkpoint、CSV 同处一目录。
+
 ```
 0_nqs/
 ├── README.md              # 本文件：介绍与环境配置
 ├── requirements.txt       # Python 依赖列表
 ├── NQS project.md        # 课程/项目说明（模型、任务、参考文献）
 ├── rydberg_chain/         # Rydberg 原子链 NQS（观测量 Mx, Mz, Ntot）
-│   ├── rydberg_nqs_starter.py   # NQS 训练；PRECISION=complex64|complex128，LOAD_CHECKPOINT 可恢复
-│   ├── parse_vmc_log.py         # 解析 .log → *_runN_parsed.csv / *_runN_summary.csv（-p 精度，-r 指定 N）
-│   ├── merge_vmc_csvs.py        # 合并多次训练 CSV（--precision, --name）
+│   ├── rydberg_nqs_starter.py   # NQS 训练；输出到 train/<precision>/<param_subdir>/
+│   ├── parse_vmc_log.py         # 解析 .log → *_runN_parsed.csv / *_runN_summary.csv
+│   ├── merge_vmc_csvs.py        # 合并多次训练 CSV
 │   ├── how_to_load_model.py     # 从 .mpack 加载参数示例
-│   ├── Fig_Convergence_Obs.py   # 收敛与观测量（-p 精度，输出到 figure/）
+│   ├── Fig_Convergence_Obs.py   # 收敛与观测量（单精度）
 │   ├── Fig_Convergence_Obs_compare.py   # complex128 vs complex64 对比
 │   ├── figure/                  # 绘图输出（PDF/SVG）
 │   └── train/
-│       ├── complex128/          # 双精度 .log、.mpack、*_parsed.csv、*_merged_*.csv
-│       └── complex64/           # 单精度（同上）
-└── long_range_ising/      # 长程横场 Ising 模型 NQS（观测量 Mx, Mz, Mz_AFM，含 sigma 列）
-    ├── rbm_long_range_ising.py  # RBM+VMC 训练；PRECISION、LOAD_CHECKPOINT、delta 等，文件名含 delta
-    ├── parse_vmc_log.py         # 解析 .log，输出含 sigma_Mx/Mz/Mz_AFM（观测量方差）
-    ├── merge_vmc_csvs.py        # 合并 CSV（默认 --precision complex64，--name 与训练脚本一致）
-    ├── how_to_load_model.py     # 从 train/<precision>/ 加载 .mpack 示例
-    ├── Fig_Convergence_Obs.py   # 收敛与 |Mx|、|Mz|、|Mz_AFM|（可选误差带）
-    ├── Fig_Convergence_Obs_compare.py   # 双精度对比 + Mz_AFM
+│       ├── complex128/
+│       │   └── L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/   # 例：L16_Rb1.0_delta0.5_alpha6.0
+│       │       ├── rydberg_*.log, rydberg_*.mpack, *_parsed.csv, *_merged_*.csv
+│       └── complex64/
+│           └── L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/
+└── long_range_ising/      # 长程横场 Ising 模型 NQS（观测量 Mx, Mz, Mz_AFM）
+    ├── rbm_long_range_ising.py  # RBM+VMC 训练；输出到 train/<precision>/<param_subdir>/
+    ├── parse_vmc_log.py         # 解析 .log，输出含 sigma_Mx/Mz/Mz_AFM
+    ├── merge_vmc_csvs.py        # 合并 CSV
+    ├── how_to_load_model.py     # 从 .mpack 加载参数示例
+    ├── Fig_Convergence_Obs.py   # 收敛与 |Mx|、|Mz|、|Mz_AFM|
+    ├── Fig_Convergence_Obs_compare.py   # 双精度对比
     ├── figure/
     └── train/
         ├── complex128/
+        │   └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/   # 例：L16_1.0_delta0.0_alphaInt2.0
+        │       ├── rbm_LongIsing_*.log, *.mpack, *_parsed.csv, *_merged_*.csv
         └── complex64/
+            └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/
 ```
+
+- **训练脚本**（`rydberg_nqs_starter.py`、`rbm_long_range_ising.py`）：根据当前参数生成 `param_subdir`，将 **.log** 与 **.mpack**（checkpoint）写入 `train/<PRECISION>/<param_subdir>/`。
+- **解析 / 合并 / 画图**（`parse_vmc_log.py`、`merge_vmc_csvs.py`、`Fig_Convergence_Obs*.py`）：通过命令行参数 `--L`、`--delta`、`--alpha`（以及 rydberg 的 `--Rb`、long_range_ising 的 `--J`）确定同一组参数，默认读写路径为 `train/<precision>/<param_subdir>/`，与训练输出一致。
 
 ---
 
@@ -169,7 +180,7 @@ source .venv/bin/activate   # 或 conda activate nqs
 python3 rydberg_chain/rydberg_nqs_starter.py
 ```
 
-运行完成后在 **`rydberg_chain/train/<precision>/`** 下生成 `.log` 与 `.mpack`。脚本内 **`PRECISION`**（complex64/complex128）决定精度与子目录；**`LOAD_CHECKPOINT`** 可设为同目录下 `.mpack` 路径以恢复训练。
+运行完成后在 **`rydberg_chain/train/<precision>/L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/`** 下生成 `.log` 与 `.mpack`（例：默认参数为 `L16_Rb1.0_delta0.5_alpha6.0`）。脚本内 **`PRECISION`**、**`L`**、**`Rb`**、**`delta`**、**`alpha_interaction`** 决定子目录与文件名；**`LOAD_CHECKPOINT`** 指向同目录下 `.mpack` 以恢复训练。
 
 **长程 Ising（long_range_ising）：**
 
@@ -177,22 +188,22 @@ python3 rydberg_chain/rydberg_nqs_starter.py
 python3 long_range_ising/rbm_long_range_ising.py
 ```
 
-输出在 **`long_range_ising/train/<precision>/`**，文件名含 **`delta`**（如 `rbm_LongIsing_L=16_J=1.0_delta=0_alphaInt=2.0_...`），便于区分不同 δ。观测量为 **Mx、Mz、Mz_AFM**（反铁磁序参量 \(M_z^{\mathrm{AFM}}=(1/L)\sum_j (-1)^j\langle\sigma^z_j\rangle\)）。脚本内 **`PRECISION`**、**`LOAD_CHECKPOINT`**（True/False）、**`delta`** 等可调。
+输出在 **`long_range_ising/train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/`**（例：默认 `L16_1.0_delta0.0_alphaInt2.0`），文件名含 **`delta`**（如 `rbm_LongIsing_L=16_J=1.0_delta=0.0_alphaInt=2.0_...`）。观测量为 **Mx、Mz、Mz_AFM**（反铁磁序参量 \(M_z^{\mathrm{AFM}}=(1/L)\sum_j (-1)^j\langle\sigma^z_j\rangle\)）。脚本内 **`PRECISION`**、**`LOAD_CHECKPOINT`**、**`delta`**、**`L`**、**`J`**、**`alpha_interaction`** 等可调。
 
 ### 6. 解析、合并与画图（可选）
 
-两模块流程一致：解析 log → 合并多次 run 的 CSV → 画收敛与观测量。
+两模块流程一致：解析 log → 合并多次 run 的 CSV → 画收敛与观测量。**读写路径与训练一致**：均按参数子目录 `train/<precision>/<param_subdir>/`，通过 `--L`、`--delta`、`--alpha` 等指定要处理的参数组（rydberg 另加 `--Rb`，long_range_ising 另加 `--J`）；不指定时使用各脚本顶部的默认超参数。
 
 | 步骤 | rydberg_chain | long_range_ising |
 |------|----------------|------------------|
-| **解析** | `python3 rydberg_chain/parse_vmc_log.py`（可选 `-p complex64`） | `python3 long_range_ising/parse_vmc_log.py`（可选 `-p complex64`，默认基名与训练输出一致） |
-| **合并** | `python3 rydberg_chain/merge_vmc_csvs.py` 或 `-p complex64` | `python3 long_range_ising/merge_vmc_csvs.py` 或 `-p complex64` |
-| **单精度图** | `python3 rydberg_chain/Fig_Convergence_Obs.py -p complex64` | `python3 long_range_ising/Fig_Convergence_Obs.py -p complex64` |
-| **双精度对比图** | `python3 rydberg_chain/Fig_Convergence_Obs_compare.py` | `python3 long_range_ising/Fig_Convergence_Obs_compare.py` |
+| **解析** | `python3 rydberg_chain/parse_vmc_log.py`<br>可选：`-p complex64`，`--L 16 --Rb 1.0 --delta 0.5 --alpha 6` | `python3 long_range_ising/parse_vmc_log.py`<br>可选：`-p complex64`，`--L 16 --J 1.0 --delta 0 --alpha 2` |
+| **合并** | `python3 rydberg_chain/merge_vmc_csvs.py`<br>同上参数指定子目录 | `python3 long_range_ising/merge_vmc_csvs.py`<br>同上参数指定子目录 |
+| **单精度图** | `python3 rydberg_chain/Fig_Convergence_Obs.py -p complex64`<br>可选 `--L --Rb --delta --alpha` | `python3 long_range_ising/Fig_Convergence_Obs.py -p complex64`<br>可选 `--L --J --delta --alpha` |
+| **双精度对比图** | `python3 rydberg_chain/Fig_Convergence_Obs_compare.py`<br>可选 `--L --Rb --delta --alpha` | `python3 long_range_ising/Fig_Convergence_Obs_compare.py`<br>可选 `--L --J --delta --alpha` |
 
-- 解析得到 **`*_runN_parsed.csv`**、**`*_runN_summary.csv`**（N 自动递增；`-r N` 可指定）。long_range_ising 的 parsed CSV 含 **sigma_Mx、sigma_Mz、sigma_Mz_AFM**，便于查看观测量方差。
-- 合并得到 **`*_merged_parsed.csv`**、**`*_merged_summary.csv`**（含 `run`、`global_iter`）。
-- 图保存到各模块下的 **`figure/`**；long_range_ising 图含 \|Mx\|、\|Mz\|、\|Mz_AFM\| 及可选误差带。
+- 解析：默认从 **`train/<precision>/<param_subdir>/`** 下找对应 `.log`，写出 **`*_runN_parsed.csv`**、**`*_runN_summary.csv`**（N 可 `-r` 指定）。long_range_ising 的 parsed CSV 含 **sigma_Mx、sigma_Mz、sigma_Mz_AFM**。
+- 合并：在同一子目录下合并为 **`*_merged_parsed.csv`**、**`*_merged_summary.csv`**（含 `run`、`global_iter`）。
+- 图保存到各模块 **`figure/`**；long_range_ising 图含 \|Mx\|、\|Mz\|、\|Mz_AFM\| 及可选误差带。
 
 ---
 

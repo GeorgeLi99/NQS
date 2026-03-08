@@ -4,13 +4,12 @@
 （与 rydberg_chain 相同逻辑，默认目录与基名为 long_range_ising/train/<precision>/ 下的 rbm_LongIsing_*）
 
 用法:
-  python3 merge_vmc_csvs.py [目录] [--name 基名] [--precision complex64|complex128]
+  python3 merge_vmc_csvs.py [目录] [--L L] [--J J] [--delta delta] [--alpha alpha] [--name 基名] [--precision complex64|complex128]
   python3 merge_vmc_csvs.py --precision complex64
-  python3 merge_vmc_csvs.py --delta 0   # 合并 delta=0 的 CSV（默认）
   python3 merge_vmc_csvs.py --delta 0.5 --precision complex128
-  python3 merge_vmc_csvs.py long_range_ising/train/complex64 --name rbm_LongIsing_L=16_J=1.0_delta=0.0_...
+  python3 merge_vmc_csvs.py --L 16 --J 1.0 --delta 0 --alpha 2.0
 
-不指定目录时，默认用 train/<precision>（--precision 默认 complex64）。
+不指定目录时，默认用 train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/（--precision 默认 complex64）。
 会扫描目录下 {name}_run1_parsed.csv, {name}_run2_parsed.csv, ...，
 合并为 {name}_merged_parsed.csv 与 {name}_merged_summary.csv。
 """
@@ -21,13 +20,20 @@ import os
 import re
 import sys
 
-# 默认精度子目录，与 parse_vmc_log / rbm_long_range_ising 一致
-DIGIT = "complex64"
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex64"
+DEFAULT_L = 16
+DEFAULT_J = 1.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA = 2.0
 
 
-def _basename_from_delta(delta: float, L: int = 16) -> str:
-    """与 rbm_long_range_ising 输出文件名一致。"""
-    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"L{L}_J{J}_delta{delta}_alphaInt{alpha_int}"
+
+
+def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
 
 
 def _find_run_files(base_dir: str, name: str, suffix: str):
@@ -112,30 +118,29 @@ def main():
         "-p",
         type=str,
         choices=("complex64", "complex128"),
-        default=DIGIT,
-        help=f"精度子目录名，用于 train/<precision>（默认: {DIGIT}）",
+        default=DEFAULT_PRECISION,
+        help=f"精度子目录名，用于 train/<precision>（默认: {DEFAULT_PRECISION}）",
     )
-    parser.add_argument(
-        "--delta",
-        type=float,
-        default=0.0,
-        help="纵场 detuning，用于构造默认基名，与 rbm_long_range_ising 一致（默认: 0.0）",
-    )
+    parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长（默认: {DEFAULT_L}）")
+    parser.add_argument("--J", type=float, default=DEFAULT_J, help=f"耦合强度（默认: {DEFAULT_J}）")
+    parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"纵场 detuning（默认: {DEFAULT_DELTA}）")
+    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
     parser.add_argument(
         "--name",
         type=str,
         default=None,
-        help="文件名基名，不含 _runN；不指定时由 --delta 构造",
+        help="文件名基名；不指定时由 L/J/delta/alpha 构造",
     )
     args = parser.parse_args()
 
-    name = args.name if args.name is not None else _basename_from_delta(args.delta)
+    param_subdir = _param_subdir_from_params(args.L, args.J, args.delta, args.alpha)
+    name = args.name if args.name is not None else _basename_from_params(args.L, args.J, args.delta, args.alpha)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     if args.directory:
         base_dir = os.path.abspath(args.directory)
     else:
-        base_dir = os.path.join(script_dir, "train", args.precision)
+        base_dir = os.path.join(script_dir, "train", args.precision, param_subdir)
 
     if not os.path.isdir(base_dir):
         print(f"错误: 目录不存在 {base_dir}", file=sys.stderr)

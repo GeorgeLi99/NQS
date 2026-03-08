@@ -5,10 +5,28 @@ import sys
 import numpy as np
 import scienceplots
 
-# 数据路径：优先使用 merge_vmc_csvs.py 合并后的 CSV；不存在时回退到 _run1_ 或单文件
+# 数据路径：train/<precision>/L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/ 下 merge 后的 CSV
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 
-BASENAME = "rydberg_L16_delta0.5_Rb1.0_alpha6"
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex64"
+DEFAULT_L = 16
+DEFAULT_Rb = 1.0
+DEFAULT_DELTA = 0.5
+DEFAULT_ALPHA = 6.0
+
+parser = argparse.ArgumentParser(description="绘制 Rydberg VMC 收敛与观测量")
+parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default=DEFAULT_PRECISION,
+                    help=f"精度子目录（默认: {DEFAULT_PRECISION}）")
+parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长（默认: {DEFAULT_L}）")
+parser.add_argument("--Rb", type=float, default=DEFAULT_Rb, help=f"Blockade radius（默认: {DEFAULT_Rb}）")
+parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"Detuning（默认: {DEFAULT_DELTA}）")
+parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
+args, _ = parser.parse_known_args()
+PRECISION = args.precision
+_param_subdir = f"L{args.L}_Rb{args.Rb}_delta{args.delta}_alpha{args.alpha}"
+BASENAME = f"rydberg_L{args.L}_delta{args.delta}_Rb{args.Rb}_alpha{args.alpha}"
+DIR_DATA = os.path.join(_script_dir, "train", PRECISION, _param_subdir)
 
 
 def _resolve_parsed_csv():
@@ -26,14 +44,6 @@ def _resolve_summary_csv():
             return p
     return os.path.join(DIR_DATA, f"{BASENAME}_merged_summary.csv")
 
-
-# 命令行指定精度子目录，例如: python3 Fig_Convergence_Obs.py --precision complex64
-parser = argparse.ArgumentParser(description="绘制 VMC 收敛与观测量（从 train/<precision>/ 读 CSV）")
-parser.add_argument("--precision", "-p", choices=("complex64", "complex128"), default="complex64",
-                    help="数据所在子目录（默认: complex64）")
-args, _ = parser.parse_known_args()
-PRECISION = args.precision
-DIR_DATA = os.path.join(_script_dir, "train", PRECISION)
 
 PARSED_CSV = _resolve_parsed_csv()
 SUMMARY_CSV = _resolve_summary_csv()
@@ -79,7 +89,9 @@ def load_E0_from_summary(summary_path: str):
 
 
 ### main code
-L = 16
+L = args.L
+alpha = args.alpha
+delta = args.delta
 
 # 参考基态能量：优先从 summary CSV 读 E_final，否则用已知值
 E0 = load_E0_from_summary(SUMMARY_CSV)
@@ -87,7 +99,6 @@ if E0 is None:
     E0 = -8.878144715543531
 
 plot_key = "Energy_and_Obs"
-alpha = 6
 
 print("Precision (data dir):", PRECISION)
 print("Data:", PARSED_CSV)
@@ -119,7 +130,7 @@ plt.figure(figsize=(2 * 8.6, 6.45))
 ax1=plt.subplot(121)
 
 ax1.plot(data1[0], data1[1], color=colors[0], lw=2.0, 
-         label=r"$\delta=0.5, \alpha = $"+f" {alpha}",)
+         label=rf"$\delta={delta}, \alpha = $"+f" {alpha}",)
 
 ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$',
                fontsize=25)
@@ -179,7 +190,7 @@ ax2.tick_params("both", which='minor', length=2, # width=1.0,
     )
 
 # Big title
-plt.suptitle(r"$\delta = 0.5, L=$"+f"{L},"+" RBM, "+r"$\alpha=$"+f"{alpha}", fontsize=25)
+plt.suptitle(r"$\delta = $"+f"{delta}, "+f"$L=${L}, RBM, "+r"$\alpha=$"+f"{alpha}", fontsize=25)
 # adjust the space
 plt.subplots_adjust(hspace=0.25, wspace=0.25)
 plt.tight_layout()
@@ -187,8 +198,8 @@ plt.tight_layout()
 # 先保存再显示，避免 show() 后图形被清空；输出到 rydberg_chain/figure/
 out_dir = os.path.join(_script_dir, "figure")
 os.makedirs(out_dir, exist_ok=True)
-basename_pdf = f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.pdf"
-basename_svg = f"Fig_ConvObs_RBM_delta=0.5_L={L}_{plot_key}.svg"
+basename_pdf = f"Fig_ConvObs_RBM_delta={delta}_L={L}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_delta={delta}_L={L}_{plot_key}.svg"
 
 
 def _save_fig(path: str) -> bool:

@@ -16,17 +16,30 @@ import scienceplots
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 TRAIN_DIR = os.path.join(_script_dir, "train")
 
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_L = 16
+DEFAULT_J = 1.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA = 2.0
 
-def _basename_from_delta(delta: float, L: int = 16) -> str:
-    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+
+def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"L{L}_J{J}_delta{delta}_alphaInt{alpha_int}"
 
 
-# 命令行：--delta 指定纵场，用于数据基名与图标题（默认 0.0）
+def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
+
+
 _parser = argparse.ArgumentParser()
-_parser.add_argument("--delta", type=float, default=0.0, help="纵场 detuning（默认: 0.0）")
-_delta_args, _ = _parser.parse_known_args()
-DELTA = _delta_args.delta
-BASENAME = _basename_from_delta(DELTA)
+_parser.add_argument("--L", type=int, default=DEFAULT_L)
+_parser.add_argument("--J", type=float, default=DEFAULT_J)
+_parser.add_argument("--delta", type=float, default=DEFAULT_DELTA)
+_parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
+_args, _ = _parser.parse_known_args()
+_param_subdir = _param_subdir_from_params(_args.L, _args.J, _args.delta, _args.alpha)
+BASENAME = _basename_from_params(_args.L, _args.J, _args.delta, _args.alpha)
+DELTA = _args.delta
 
 
 def _resolve_parsed_csv(dir_path: str):
@@ -89,12 +102,13 @@ def load_E0_from_summary(summary_path: str):
     return float(rows[-1]["E_final"])
 
 
-L = 16
-alpha_int = 2.0
+L = _args.L
+alpha_int = _args.alpha
 plot_key = "Energy_and_Obs_compare"
 
-dir_128 = os.path.join(TRAIN_DIR, "complex128")
-dir_64 = os.path.join(TRAIN_DIR, "complex64")
+# 路径：train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/
+dir_128 = os.path.join(TRAIN_DIR, "complex128", _param_subdir)
+dir_64 = os.path.join(TRAIN_DIR, "complex64", _param_subdir)
 parsed_128 = _resolve_parsed_csv(dir_128)
 parsed_64 = _resolve_parsed_csv(dir_64)
 summary_128 = _resolve_summary_csv(dir_128)

@@ -22,6 +22,13 @@ import os
 import re
 import sys
 
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex128"
+DEFAULT_L = 16
+DEFAULT_Rb = 1.0
+DEFAULT_DELTA = 0.5
+DEFAULT_ALPHA = 6.0
+
 
 def load_log(path: str) -> dict:
     """加载 JSON 格式的 log 文件。"""
@@ -236,10 +243,14 @@ def main():
     parser.add_argument(
         "-p", "--precision",
         type=str,
-        default="complex128",
+        default=DEFAULT_PRECISION,
         choices=("complex128", "complex64"),
-        help="未指定 log 时使用的精度子目录（默认: complex128）",
+        help=f"未指定 log 时使用的精度子目录（默认: {DEFAULT_PRECISION}）",
     )
+    parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长，与 checkpoint 参数一致（默认: {DEFAULT_L}）")
+    parser.add_argument("--Rb", type=float, default=DEFAULT_Rb, help=f"Blockade radius，与 checkpoint 参数一致（默认: {DEFAULT_Rb}）")
+    parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"Detuning，与 checkpoint 参数一致（默认: {DEFAULT_DELTA}）")
+    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α，与 checkpoint 参数一致（默认: {DEFAULT_ALPHA}）")
     parser.add_argument(
         "-t", "--table",
         action="store_true",
@@ -275,9 +286,11 @@ def main():
     if args.log_file:
         log_path = os.path.abspath(args.log_file)
     else:
-        # 默认与 rydberg_nqs_starter.py 输出一致：rydberg_chain/train/<precision>/
+        # 默认路径：train/<precision>/L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/rydberg_L{L}_delta{delta}_Rb{Rb}_alpha{alpha}.log
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(script_dir, "train", args.precision, "rydberg_L16_delta0.5_Rb1.0_alpha6.log")
+        param_subdir = f"L{args.L}_Rb{args.Rb}_delta{args.delta}_alpha{args.alpha}"
+        base_name = f"rydberg_L{args.L}_delta{args.delta}_Rb{args.Rb}_alpha{args.alpha}"
+        log_path = os.path.join(script_dir, "train", args.precision, param_subdir, base_name + ".log")
 
     if not os.path.isfile(log_path):
         print(f"错误: 未找到文件 {log_path}", file=sys.stderr)

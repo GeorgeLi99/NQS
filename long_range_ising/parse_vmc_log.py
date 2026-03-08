@@ -23,11 +23,20 @@ import os
 import re
 import sys
 
-DIGIT="complex64"
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_PRECISION = "complex64"
+DEFAULT_L = 16
+DEFAULT_J = 1.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA = 2.0
 
-# 与 rbm_long_range_ising.py 输出一致（文件名含 delta）
-def _basename_from_delta(delta: float, L: int = 16) -> str:
-    return f"rbm_LongIsing_L={L}_J=1.0_delta={delta}_alphaInt=2.0_alpha=4_Cal1"
+# 与 rbm_long_range_ising.py 输出一致；路径为 train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/
+def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"L{L}_J{J}_delta{delta}_alphaInt{alpha_int}"
+
+
+def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
 
 
 def load_log(path: str) -> dict:
@@ -271,9 +280,9 @@ def main():
     parser.add_argument(
         "-p", "--precision",
         type=str,
-        default=DIGIT,
+        default=DEFAULT_PRECISION,
         choices=("complex128", "complex64"),
-        help=f"未指定 log 时使用的精度子目录（默认: {DIGIT}）",
+        help=f"未指定 log 时使用的精度子目录（默认: {DEFAULT_PRECISION}）",
     )
     parser.add_argument(
         "-t", "--table",
@@ -305,27 +314,26 @@ def main():
         metavar="N",
         help="第几次训练结果，用于文件名 name_runN_parsed.csv",
     )
-    parser.add_argument(
-        "--delta",
-        type=float,
-        default=0.0,
-        help="纵场 detuning，用于构造默认 log/CSV 基名，与 rbm_long_range_ising 一致（默认: 0.0）",
-    )
+    parser.add_argument("--L", type=int, default=DEFAULT_L, help=f"链长（默认: {DEFAULT_L}）")
+    parser.add_argument("--J", type=float, default=DEFAULT_J, help=f"耦合强度（默认: {DEFAULT_J}）")
+    parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"纵场 detuning（默认: {DEFAULT_DELTA}）")
+    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
     parser.add_argument(
         "--name",
         type=str,
         default=None,
-        help="log/CSV 基名；不指定时由 --delta 构造（如 delta=0 → rbm_LongIsing_L=16_J=1.0_delta=0.0_...）",
+        help="log/CSV 基名；不指定时由 L/J/delta/alpha 构造",
     )
     args = parser.parse_args()
 
-    name = args.name if args.name is not None else _basename_from_delta(args.delta)
+    param_subdir = _param_subdir_from_params(args.L, args.J, args.delta, args.alpha)
+    base_name = args.name if args.name is not None else _basename_from_params(args.L, args.J, args.delta, args.alpha)
 
     if args.log_file:
         log_path = os.path.abspath(args.log_file)
     else:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(script_dir, "train", args.precision, name + ".log")
+        log_path = os.path.join(script_dir, "train", args.precision, param_subdir, base_name + ".log")
 
     if not os.path.isfile(log_path):
         print(f"错误: 未找到文件 {log_path}", file=sys.stderr)

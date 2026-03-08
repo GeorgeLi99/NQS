@@ -6,6 +6,7 @@
 数据路径：rydberg_chain/train/<precision>/ 下 merge_vmc_csvs.py 生成的 _merged_parsed.csv
 """
 
+import argparse
 import csv
 import os
 import sys
@@ -15,7 +16,21 @@ import scienceplots
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 TRAIN_DIR = os.path.join(_script_dir, "train")
-BASENAME = "rydberg_L16_delta0.5_Rb1.0_alpha6"
+
+# --- 默认超参数（可由命令行覆盖）---
+DEFAULT_L = 16
+DEFAULT_Rb = 1.0
+DEFAULT_DELTA = 0.5
+DEFAULT_ALPHA = 6.0
+
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--L", type=int, default=DEFAULT_L)
+_parser.add_argument("--Rb", type=float, default=DEFAULT_Rb)
+_parser.add_argument("--delta", type=float, default=DEFAULT_DELTA)
+_parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
+_args, _ = _parser.parse_known_args()
+_param_subdir = f"L{_args.L}_Rb{_args.Rb}_delta{_args.delta}_alpha{_args.alpha}"
+BASENAME = f"rydberg_L{_args.L}_delta{_args.delta}_Rb{_args.Rb}_alpha{_args.alpha}"
 
 
 def _resolve_parsed_csv(dir_path: str):
@@ -77,13 +92,13 @@ def load_E0_from_summary(summary_path: str):
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
-L = 16
-alpha = 6
+L = _args.L
+alpha = _args.alpha
 plot_key = "Energy_and_Obs_compare"
 
-# 路径（优先合并后的 CSV）
-dir_128 = os.path.join(TRAIN_DIR, "complex128")
-dir_64 = os.path.join(TRAIN_DIR, "complex64")
+# 路径：train/<precision>/L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/
+dir_128 = os.path.join(TRAIN_DIR, "complex128", _param_subdir)
+dir_64 = os.path.join(TRAIN_DIR, "complex64", _param_subdir)
 parsed_128 = _resolve_parsed_csv(dir_128)
 parsed_64 = _resolve_parsed_csv(dir_64)
 summary_128 = _resolve_summary_csv(dir_128)
