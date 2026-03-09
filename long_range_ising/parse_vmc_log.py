@@ -26,17 +26,20 @@ import sys
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_PRECISION = "complex64"
 DEFAULT_L = 16
-DEFAULT_J = 1.0
+DEFAULT_J = 2.0
 DEFAULT_DELTA = 0.0
-DEFAULT_ALPHA = 2.0
+DEFAULT_ALPHA = 0.5
+DEFAULT_ALPHA_RBM = 4
+DEFAULT_CAL = 1
 
 # 与 rbm_long_range_ising.py 输出一致；路径为 train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/
 def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
     return f"L{L}_J{J}_delta{delta}_alphaInt{alpha_int}"
 
 
-def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
-    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
+def _basename_from_params(L: int, J: float, delta: float, alpha_int: float, alpha_rbm: int, cal: int) -> str:
+    # 文件名需与 rbm_long_range_ising.py 完全一致：_alpha=<RBM hidden alpha>_Cal<cal>
+    return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha={alpha_rbm}_Cal{cal}"
 
 
 def load_log(path: str) -> dict:
@@ -58,7 +61,11 @@ def get_energy_mean(entry: dict, i: int) -> float:
 def get_energy_sigma(entry: dict, i: int) -> float:
     """从 Energy 条目中取第 i 步的误差 Sigma。"""
     sigma = entry.get("Sigma", [])
-    return sigma[i] if i < len(sigma) else float("nan")
+    if not isinstance(sigma, (list, tuple)):
+        return float("nan")
+    if i >= len(sigma):
+        return float("nan")
+    return float("nan") if sigma[i] is None else sigma[i]
 
 
 def get_obs_mean(entry: dict, i: int) -> float:
@@ -75,7 +82,11 @@ def get_obs_mean(entry: dict, i: int) -> float:
 def get_obs_sigma(entry: dict, i: int) -> float:
     """从观测量条目中取第 i 步的 Sigma（误差/标准差），用于看 variance 量级。"""
     sigma = entry.get("Sigma", [])
-    return sigma[i] if i < len(sigma) else float("nan")
+    if not isinstance(sigma, (list, tuple)):
+        return float("nan")
+    if i >= len(sigma):
+        return float("nan")
+    return float("nan") if sigma[i] is None else sigma[i]
 
 
 def get_acceptance(entry: dict, i: int) -> float:
@@ -87,6 +98,8 @@ def get_acceptance(entry: dict, i: int) -> float:
 
 
 def format_number(x: float, decimals: int = 6) -> str:
+    if x is None:
+        return "—"
     if x != x:  # nan
         return "—"
     return f"{x: .{decimals}g}"
@@ -318,6 +331,8 @@ def main():
     parser.add_argument("--J", type=float, default=DEFAULT_J, help=f"耦合强度（默认: {DEFAULT_J}）")
     parser.add_argument("--delta", type=float, default=DEFAULT_DELTA, help=f"纵场 detuning（默认: {DEFAULT_DELTA}）")
     parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help=f"相互作用指数 α（默认: {DEFAULT_ALPHA}）")
+    parser.add_argument("--alpha-rbm", type=int, default=DEFAULT_ALPHA_RBM, help=f"RBM hidden alpha（默认: {DEFAULT_ALPHA_RBM}）")
+    parser.add_argument("--cal", type=int, default=DEFAULT_CAL, help=f"输出文件名中的 Cal 编号（默认: {DEFAULT_CAL}）")
     parser.add_argument(
         "--name",
         type=str,
@@ -327,7 +342,11 @@ def main():
     args = parser.parse_args()
 
     param_subdir = _param_subdir_from_params(args.L, args.J, args.delta, args.alpha)
-    base_name = args.name if args.name is not None else _basename_from_params(args.L, args.J, args.delta, args.alpha)
+    base_name = (
+        args.name
+        if args.name is not None
+        else _basename_from_params(args.L, args.J, args.delta, args.alpha, args.alpha_rbm, args.cal)
+    )
 
     if args.log_file:
         log_path = os.path.abspath(args.log_file)

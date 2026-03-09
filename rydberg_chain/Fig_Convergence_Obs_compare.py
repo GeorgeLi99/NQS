@@ -20,8 +20,8 @@ TRAIN_DIR = os.path.join(_script_dir, "train")
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_L = 16
 DEFAULT_Rb = 1.0
-DEFAULT_DELTA = 0.5
-DEFAULT_ALPHA = 6.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA = 0.5
 
 _parser = argparse.ArgumentParser()
 _parser.add_argument("--L", type=int, default=DEFAULT_L)

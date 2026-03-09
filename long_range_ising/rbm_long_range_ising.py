@@ -69,7 +69,7 @@ key_cal = 1  # 用于输出文件名 Cal{key_cal}
 # 4. 训练与 VMC
 n_iteration = 2000
 LOAD_CHECKPOINT = False  # True=存在同名校验点则加载续训
-val_learning_rate = 0.01
+val_learning_rate = 0.001
 val_diagonal_shfit = 0.0001  # SR 对角 shift
 n_warmup = 50  # 学习率 / diag_shift schedule 的 warmup 步数（若用 decay 优化器）
 diag_end_value = 1e-3

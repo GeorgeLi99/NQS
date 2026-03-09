@@ -23,9 +23,9 @@ import sys
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_PRECISION = "complex64"
 DEFAULT_L = 16
-DEFAULT_J = 1.0
+DEFAULT_J = 2.0
 DEFAULT_DELTA = 0.0
-DEFAULT_ALPHA = 2.0
+DEFAULT_ALPHA = 0.5
 
 
 def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:

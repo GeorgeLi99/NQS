@@ -9,18 +9,30 @@ import argparse
 import csv
 import os
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
-import scienceplots
+
+try:
+    import numpy as np
+except ModuleNotFoundError as e:
+    print("错误: 缺少依赖 numpy。请先在你的虚拟环境中安装依赖：", file=sys.stderr)
+    print("  pip install -r requirements.txt", file=sys.stderr)
+    raise SystemExit(1) from e
+
+try:
+    import matplotlib.pyplot as plt
+    import scienceplots  # noqa: F401  (注册 science/no-latex 风格)
+except ModuleNotFoundError as e:
+    print("错误: 缺少绘图依赖 matplotlib/scienceplots。请先安装依赖：", file=sys.stderr)
+    print("  pip install -r requirements.txt", file=sys.stderr)
+    raise SystemExit(1) from e
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 TRAIN_DIR = os.path.join(_script_dir, "train")
 
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_L = 16
-DEFAULT_J = 1.0
+DEFAULT_J = 2.0
 DEFAULT_DELTA = 0.0
-DEFAULT_ALPHA = 2.0
+DEFAULT_ALPHA = 0.5
 
 
 def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
@@ -28,6 +40,7 @@ def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) 
 
 
 def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
+    # 与 rbm_long_range_ising.py 的输出文件名一致（RBM hidden alpha=4, Cal1 固定）
     return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
 
 
@@ -113,6 +126,20 @@ parsed_128 = _resolve_parsed_csv(dir_128)
 parsed_64 = _resolve_parsed_csv(dir_64)
 summary_128 = _resolve_summary_csv(dir_128)
 
+if not os.path.isfile(parsed_128):
+    print("错误: 未找到 complex128 的 parsed CSV。", file=sys.stderr)
+    print(f"  期望目录: {dir_128}", file=sys.stderr)
+    print(f"  期望文件: {parsed_128}", file=sys.stderr)
+    print("  提示: 先运行 merge_vmc_csvs.py 生成 *_merged_parsed.csv。", file=sys.stderr)
+    raise SystemExit(1)
+
+if not os.path.isfile(parsed_64):
+    print("错误: 未找到 complex64 的 parsed CSV。", file=sys.stderr)
+    print(f"  期望目录: {dir_64}", file=sys.stderr)
+    print(f"  期望文件: {parsed_64}", file=sys.stderr)
+    print("  提示: 先运行 merge_vmc_csvs.py 生成 *_merged_parsed.csv。", file=sys.stderr)
+    raise SystemExit(1)
+
 E0 = load_E0_from_summary(summary_128)
 if E0 is None:
     E0 = -5.0
@@ -138,7 +165,8 @@ ax1.plot(iters_64, rel_err_64, color=colors[1], lw=2.0, label="complex64")
 ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$', fontsize=25)
 ax1.set_xlabel("Iteration", fontsize=25)
 ax1.set_xlim((0, 2000))
-ax1.set_ylim((1e-8, 1))
+_ymax = float(np.nanmax([np.nanmax(rel_err_128), np.nanmax(rel_err_64), 1.0]))
+ax1.set_ylim((1e-8, _ymax * 1.05))
 ax1.set_yscale("log")
 ax1.set_xticks([0, 500, 1000, 1500, 2000],
                ["0", r"500", r"1000", r"1500 ", r"2000"], fontsize=25)
@@ -172,14 +200,19 @@ ax2.legend(loc="upper right", fontsize=20, frameon=False)
 ax2.tick_params("both", which="major", length=4, direction="in")
 ax2.tick_params("both", which="minor", length=2, direction="in")
 
-plt.suptitle(r"Long-range Ising: $\delta = $" + f"{DELTA}, " + f"$L=${L}, RBM, " + r"$\alpha_{int}=$" + f"{alpha_int} (complex128 vs complex64)", fontsize=25)
+plt.suptitle(
+    r"Long-range Ising: $\delta = $" + f"{DELTA}, " + f"$J={_args.J}$, " + f"$L=${L}, RBM, " + r"$\alpha_{int}=$"
+    + f"{alpha_int} (complex128 vs complex64)",
+    fontsize=25,
+)
 plt.subplots_adjust(hspace=0.25, wspace=0.25)
 plt.tight_layout()
 
 out_dir = os.path.join(_script_dir, "figure")
 os.makedirs(out_dir, exist_ok=True)
-basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.pdf"
-basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.svg"
+_param_tag = f"L{L}_J{_args.J}_delta{DELTA}_alphaInt{alpha_int}"
+basename_pdf = f"Fig_ConvObs_RBM_LongIsing_{_param_tag}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_LongIsing_{_param_tag}_{plot_key}.svg"
 
 
 def _save_fig(path: str) -> bool:

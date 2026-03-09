@@ -23,7 +23,7 @@ import re
 import sys
 
 # --- 默认超参数（可由命令行覆盖）---
-DEFAULT_PRECISION = "complex128"
+DEFAULT_PRECISION = "complex64"
 DEFAULT_L = 16
 DEFAULT_Rb = 1.0
 DEFAULT_DELTA = 0.5

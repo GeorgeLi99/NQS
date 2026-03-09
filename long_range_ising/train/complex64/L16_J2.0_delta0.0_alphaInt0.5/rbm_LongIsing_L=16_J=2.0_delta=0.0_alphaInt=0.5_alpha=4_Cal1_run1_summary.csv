@@ -1,0 +1,2 @@
+log_file,n_iters,E_initial,E_final,sigma_E_final,accept_initial,accept_final,Mx_final,sigma_Mx_final,Mz_final,sigma_Mz_final,Mz_AFM_final,sigma_Mz_AFM_final,Ntot_final,sigma_Ntot_final
+/mnt/d/0_code/0_nqs/long_range_ising/train/complex64/L16_J2.0_delta0.0_alphaInt0.5/rbm_LongIsing_L=16_J=2.0_delta=0.0_alphaInt=0.5_alpha=4_Cal1.log,2000,15.943423813290792,-24.838790415959693,0.00025660618953954664,0.9892091751098633,0.46051756540934247,-0.7694482272506065,0.0013951068028235946,-0.000240325927734375,0.0006094836745899092,-0.002285003662109375,0.002888192467414073,nan,nan
