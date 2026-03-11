@@ -44,6 +44,14 @@ EARLY_STOP_TOL = 1e-5            # 若窗口内能量改善 < tol 则早停
 USE_LR_SCHEDULE = True           # False 则使用常数学习率 val_learning_rate
 LR_DECAY_ALPHA = 0.1             # cosine decay 末端比例（末端 lr = lr0 * alpha）
 
+# 多 GPU（两张卡并行跑不同 alphaInt 行）
+USE_TWO_GPUS = True             # True: 使用两张 GPU 并行；False: 单卡串行
+
+# 输出目录根路径（用于云端无写权限时重定向输出）
+# - None：默认写入 phase_diagram/ 目录下（即与脚本同级的 train/figure）
+# - 或者给一个可写路径，比如 "/scratch/$USER/nqs/phase_diagram"
+OUTPUT_ROOT = None
+
 # ======================================================================
 # 路径约定（由参数派生，一般无需改）
 # ======================================================================

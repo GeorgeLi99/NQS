@@ -153,8 +153,8 @@ pip install -r requirements.txt
 先确认驱动与 CUDA（在 WSL 内 `nvidia-smi` 可用）。**先装带 CUDA 的 JAX**（会拉取 jaxlib 等），再装本项目的 requirements，避免版本冲突：
 
 ```bash
-# 先安装 JAX GPU 版（常见为 CUDA 12，与实测环境一致）
-pip install --upgrade "jax[cuda12]"
+# 先安装 JAX GPU 版（CUDA 12，按官方 wheel 源；与实测版本一致）
+pip install "jax[cuda12_pip]==0.4.38" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 # 再安装其余包（与 requirements.txt 中版本一致：NetKet 3.19.2, Flax 0.10.4 等）
 pip install -r requirements.txt
@@ -185,7 +185,7 @@ print('Devices:', jax.devices())
 "
 ```
 
-无报错即表示环境可用。在实测 WSL 环境中应看到类似：`JAX: 0.4.38`、`NetKet: 3.19.2`、`JAX backend: gpu`（若已装 `jax[cuda12]`）。
+无报错即表示环境可用。在实测 WSL 环境中应看到类似：`JAX: 0.4.38`、`NetKet: 3.19.2`、`JAX backend: gpu`（若已装 CUDA12 的 `jax[cuda12_pip]==0.4.38`）。
 
 ### 5. 运行入门脚本
 
@@ -227,6 +227,8 @@ python3 parse_all_logs.py       # 批量解析 .log → CSV
 python3 plot_convergence.py     # 每点收敛图
 python3 plot_phase_diagram.py   # |Mx|、|Mz_AFM| 热力图 → figure/
 ```
+
+若云端服务器有两张 GPU，可在 `phase_diagram/config.py` 中设置 `USE_TWO_GPUS = True`，脚本会自动启动两个子进程分别绑定 GPU0/GPU1，并按 `alphaInt` 行切分网格并行训练（输出目录结构不变）。
 
 **对称 RBM（RBMSymm）：**
 
