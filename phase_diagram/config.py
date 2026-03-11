@@ -37,15 +37,15 @@ n_discard_per_chain = 32
 chunk_size = 1024 * 8
 
 # 早停（能量收敛判据）
-EARLY_STOP_WINDOW = 50          # 最近多少个回合构成窗口
-EARLY_STOP_TOL = 1e-5            # 若窗口内能量改善 < tol 则早停
+EARLY_STOP_WINDOW = 200          # 最近多少个回合构成窗口
+EARLY_STOP_TOL = 1e-6            # 若窗口内能量改善 < tol 则早停
 
 # 学习率调度（cosine decay）
 USE_LR_SCHEDULE = True           # False 则使用常数学习率 val_learning_rate
 LR_DECAY_ALPHA = 0.1             # cosine decay 末端比例（末端 lr = lr0 * alpha）
 
 # 多 GPU（两张卡并行跑不同 alphaInt 行）
-USE_TWO_GPUS = True             # True: 使用两张 GPU 并行；False: 单卡串行
+USE_TWO_GPUS = False             # True: 使用两张 GPU 并行；False: 单卡串行
 
 # 输出目录根路径（用于云端无写权限时重定向输出）
 # - None：默认写入 phase_diagram/ 目录下（即与脚本同级的 train/figure）

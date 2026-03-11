@@ -1,0 +1,2 @@
+log_file,n_iters,E_initial,E_final,sigma_E_final,accept_initial,accept_final,Mx_final,sigma_Mx_final,Mz_final,sigma_Mz_final,Mz_AFM_final,sigma_Mz_AFM_final,Ntot_final,sigma_Ntot_final
+/mnt/d/0_code/0_nqs/phase_diagram/train/complex128/L32_J1.0_delta0.0_alphaInt1.0/rbm_LongIsing_L=32_J=1.0_delta=0.0_alphaInt=1.0_alpha=4_Cal1.log,1,-38.12338593618877,-38.12338593618877,0.0001336545430128274,0.6149117151896158,0.6149117151896158,-0.8794218468347462,0.0006812608678619079,-0.0001354217529296875,0.000532068753226702,0.0021114349365234375,0.0014356261623476683,nan,nan

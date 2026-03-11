@@ -36,9 +36,9 @@ _ed_result_dir = os.path.join(_root_dir, "ED", "result")
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_PRECISION = "complex64"
 DEFAULT_L = 16
-DEFAULT_J = 1.0
-DEFAULT_DELTA = 0.5
-DEFAULT_ALPHA_INT = 6.0
+DEFAULT_J = 2.0
+DEFAULT_DELTA = 0.0
+DEFAULT_ALPHA_INT = 0.5
 
 # ED 的参数：默认认为 alpha(ED) == alphaInt，且 h = Omega/2 = 1.0
 DEFAULT_ED_ALPHA = None  # None -> 使用 alphaInt
@@ -115,6 +115,14 @@ def main() -> None:
     base_name = _basename_from_params(args.L, args.J, args.delta, args.alpha_int, args.alpha_rbm, args.cal)
     parsed_csv = _resolve_csv(data_dir, base_name, "_parsed")
 
+    # 兼容旧文件名：早期 delta=0.5 时文件名中未包含 delta=... 段
+    if not os.path.isfile(parsed_csv) and args.delta == 0.5:
+        legacy_base = f"rbm_LongIsing_L={args.L}_J={args.J}_alphaInt={args.alpha_int}_alpha={args.alpha_rbm}_Cal{args.cal}"
+        legacy_parsed = _resolve_csv(data_dir, legacy_base, "_parsed")
+        if os.path.isfile(legacy_parsed):
+            print(f"WARNING: 使用兼容旧命名的文件: {legacy_parsed}")
+            parsed_csv = legacy_parsed
+
     if not os.path.isfile(parsed_csv):
         raise FileNotFoundError(
             f"找不到 VMC parsed CSV：{parsed_csv}\n"
@@ -144,7 +152,7 @@ def main() -> None:
     ax1 = plt.subplot(121)
     ax1.plot(iters, rel_err, color=colors[0], lw=2.0,
              label=rf"$\delta={args.delta},\, \alpha_{{int}}=$" + f" {args.alpha_int}")
-    ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$', fontsize=25)
+    ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0^{ED}}{E_0^{ED}}|$', fontsize=25)
     ax1.set_xlabel("Iteration", fontsize=25)
     ax1.set_yscale("log")
     ymax = float(np.nanmax(rel_err[np.isfinite(rel_err)])) if np.any(np.isfinite(rel_err)) else 1.0

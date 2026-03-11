@@ -1,0 +1,16 @@
+
+Long-range Ising chain: J = 1.0, alpha = 2.0, delta = 0.0, L = 16.
+After sweep 1 energy=-19.32464997535405  maxlinkdim=150 maxerr=1.81E-15 time=0.187
+After sweep 1 energy=-19.32464997535402  maxlinkdim=156 maxerr=9.26E-16 time=0.203
+
+Long-range Ising chain: J = 2.0, alpha = 0.5, delta = 0.0, L = 16.
+After sweep 1 energy=-24.83881838805035  maxlinkdim=255 maxerr=1.33E-16 time=0.259
+After sweep 2 energy=-24.838818388076483  maxlinkdim=255 maxerr=2.88E-16 time=0.496
+
+Long-range Ising chain: J = 1.0, alpha = 2.0, delta = 0.5, L = 16. 
+After sweep 1 energy=-19.415265543625686  maxlinkdim=150 maxerr=1.57E-15 time=0.493
+After sweep 1 energy=-19.415265543625807  maxlinkdim=155 maxerr=9.95E-16 time=0.220
+
+Long-range Ising chain: J = 1.0, alpha = 0.5,, delta = 1.0, L = 16. 
+After sweep 2 energy=-19.484396009646275  maxlinkdim=150 maxerr=1.43E-11 time=0.441
+After sweep 1 energy=-19.484396010006613  maxlinkdim=248 maxerr=9.54E-16 time=0.257

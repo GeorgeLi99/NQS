@@ -40,6 +40,7 @@
 │   ├── how_to_load_model.py     # 从 .mpack 加载参数示例
 │   ├── Fig_Convergence_Obs.py   # 收敛与 |Mx|、|Mz|、|Mz_AFM|
 │   ├── Fig_Convergence_Obs_compare.py   # 双精度对比
+│   ├── compute_energy_fluctuation_density.py   # 能量涨落密度 σ²_E/L（蒙特卡洛）
 │   ├── figure/
 │   └── train/
 │       ├── complex128/
@@ -248,6 +249,7 @@ python3 RBMSymm/rbmsymm_long_range_ising.py
 | **合并** | `python3 rydberg_chain/merge_vmc_csvs.py`<br>同上参数指定子目录 | `python3 long_range_ising/merge_vmc_csvs.py`<br>同上参数指定子目录 |
 | **单精度图** | `python3 rydberg_chain/Fig_Convergence_Obs.py -p complex64`<br>可选 `--L --Rb --delta --alpha` | `python3 long_range_ising/Fig_Convergence_Obs.py -p complex64`<br>可选 `--L --J --delta --alpha` |
 | **双精度对比图** | `python3 rydberg_chain/Fig_Convergence_Obs_compare.py`<br>可选 `--L --Rb --delta --alpha` | `python3 long_range_ising/Fig_Convergence_Obs_compare.py`<br>可选 `--L --J --delta --alpha` |
+| **能量涨落密度** | — | `python3 long_range_ising/compute_energy_fluctuation_density.py -p complex64 --L 16 --J 1.0 --delta 0 --alpha 2`<br>或 `--list` 扫描所有 checkpoint，输出 CSV |
 
 - 解析：默认从 **`train/<precision>/<param_subdir>/`** 下找对应 `.log`，写出 **`*_runN_parsed.csv`**、**`*_runN_summary.csv`**（N 可 `-r` 指定）。long_range_ising 的 parsed CSV 含 **sigma_Mx、sigma_Mz、sigma_Mz_AFM**。
 - 合并：在同一子目录下合并为 **`*_merged_parsed.csv`**、**`*_merged_summary.csv`**（含 `run`、`global_iter`）。

@@ -13,7 +13,6 @@ from __future__ import annotations
 import sys
 import os
 import time
-import subprocess
 from typing import Any, cast
 
 sys.path.append("../../")
@@ -29,7 +28,6 @@ from config import (
     param_subdir as _param_subdir, file_base as _file_base,
     EARLY_STOP_WINDOW, EARLY_STOP_TOL,
     USE_LR_SCHEDULE, LR_DECAY_ALPHA,
-    USE_TWO_GPUS,
     OUTPUT_ROOT,
 )
 
@@ -37,38 +35,6 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _output_root = os.environ.get("PHASE_DIAGRAM_OUTPUT_ROOT") or OUTPUT_ROOT or _script_dir
 _output_root = os.path.abspath(os.path.expanduser(str(_output_root)))
 
-# ----------------------------------------------------------------------
-# 两张 GPU 并行模式：在导入 JAX 之前就启动子进程并退出父进程
-# ----------------------------------------------------------------------
-def _split_alpha_for_two_gpus(alpha_list: list[float]) -> tuple[list[float], list[float]]:
-    a0: list[float] = []
-    a1: list[float] = []
-    for i, a in enumerate(alpha_list):
-        (a0 if i % 2 == 0 else a1).append(a)
-    return a0, a1
-
-
-def _spawn_worker(gpu_id: int, alpha_subset: list[float]) -> subprocess.Popen:
-    env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    env.setdefault("JAX_PLATFORM_NAME", "gpu")
-    cmd = [sys.executable, os.path.abspath(__file__), "--worker", ",".join(str(x) for x in alpha_subset)]
-    return subprocess.Popen(cmd, env=env)
-
-
-if __name__ == "__main__" and USE_TWO_GPUS and (len(sys.argv) < 2 or sys.argv[1] != "--worker"):
-    a0, a1 = _split_alpha_for_two_gpus([float(x) for x in ALPHA_INT_LIST])
-    print("Two-GPU enabled. alphaInt split:")
-    print("  GPU0:", a0)
-    print("  GPU1:", a1)
-    p0 = _spawn_worker(0, a0)
-    p1 = _spawn_worker(1, a1)
-    rc0 = p0.wait()
-    rc1 = p1.wait()
-    raise SystemExit(0 if (rc0 == 0 and rc1 == 0) else f"Two-GPU run failed: rc0={rc0}, rc1={rc1}")
-
-# ----------------------------------------------------------------------
-# 下面才导入 JAX / NetKet（保证每个进程已绑定好 GPU）
 # ----------------------------------------------------------------------
 os.environ.setdefault("JAX_PLATFORM_NAME", "gpu")
 
@@ -82,6 +48,7 @@ import flax.linen as nn
 import optax as opx
 
 from netket.operator.spin import sigmax, sigmaz
+from netket.utils.group import PermutationGroup, Permutation
 
 print("netket version:", nk.__version__)
 print(f"Using platform: {jax.default_backend()}")
@@ -102,7 +69,7 @@ def make_optimizer(n_iter: int) -> Any:
     return nk.optimizer.Sgd(learning_rate=cast(Any, lr_schedule))
 
 
-def _energy_mean(driver: nk.VMC) -> float:
+def _energy_mean(driver: Any) -> float:
     """
     返回当前 step 的能量均值（尽量稳健地转成 python float）。
     """
@@ -178,6 +145,23 @@ def build_observables(hi):
     return {"Mx": Mx, "Mz": Mz, "Mz_AFM": Mz_AFM}
 
 
+# ----------------------------------------------------------------------
+# 平移对称性（与 RBMSymm/rbmsymm_long_range_ising.py 一致）
+# ----------------------------------------------------------------------
+def n_site_translation(L: int, n: int) -> list[int]:
+    """L 格点链平移 n 格后的置换。"""
+    return [(i + n) % L for i in range(L)]
+
+
+def build_translation_symmetries(L: int) -> PermutationGroup:
+    """构建 L 个平移对称元，供 RBMSymm 使用。"""
+    group_elems: list[Any] = [
+        Permutation(np.array(n_site_translation(L, k), dtype=np.int32), name=f"T({k})")
+        for k in range(L)
+    ]
+    return PermutationGroup(elems=group_elems, degree=L)
+
+
 # ======================================================================
 # Main training loop
 # ======================================================================
@@ -187,10 +171,15 @@ def main(alpha_subset: list[float] | None = None):
     g = nk.graph.Chain(length=L, pbc=True)
     hi = nk.hilbert.Spin(s=0.5, N=g.n_nodes)
 
-    model = nk.models.RBM(
+    translation_group = build_translation_symmetries(L)
+    print(f"RBMSymm: translation symmetries (L={L} elements)")
+
+    model = nk.models.RBMSymm(
         alpha=alpha_rbm,
         param_dtype=dtype_jnp,
         use_hidden_bias=True,
+        use_visible_bias=use_bias,
+        symmetries=translation_group,
         kernel_init=nn.initializers.normal(stddev=0.01),
         hidden_bias_init=nn.initializers.normal(stddev=0.01),
     )
@@ -213,6 +202,12 @@ def main(alpha_subset: list[float] | None = None):
 
     for idx, (J_val, alpha_int) in enumerate(order):
         point_start = time.time()
+        mpack_out = _mpack_path(J_val, alpha_int)
+        if os.path.isfile(mpack_out):
+            print(f"\n[{idx + 1}/{total}]  J={J_val}, alphaInt={alpha_int}  SKIP (checkpoint exists)")
+            prev_mpack = mpack_out
+            continue
+
         n_iter = N_ITER_FIRST if idx == 0 else N_ITER_TRANSFER
         print(f"\n[{idx + 1}/{total}]  J={J_val}, alphaInt={alpha_int}  ({n_iter} iters)")
 
@@ -225,11 +220,16 @@ def main(alpha_subset: list[float] | None = None):
             chunk_size=chunk_size, n_samples=N_samples,
         )
 
-        # Transfer learning: load previous checkpoint
+        # Transfer learning: load previous checkpoint（结构不兼容时从头训练，如旧版 RBM vs RBMSymm）
+        loaded_ok = False
         if prev_mpack is not None and os.path.isfile(prev_mpack):
-            with open(prev_mpack, "rb") as f:
-                vs.variables = flax.serialization.from_bytes(vs.variables, f.read())
-            print(f"  Loaded checkpoint: {prev_mpack}")
+            try:
+                with open(prev_mpack, "rb") as f:
+                    vs.variables = flax.serialization.from_bytes(vs.variables, f.read())
+                loaded_ok = True
+                print(f"  Loaded checkpoint: {prev_mpack}")
+            except Exception as e:
+                print(f"  WARNING: checkpoint 无法加载，从头训练: {e}")
         elif prev_mpack is not None:
             print(f"  WARNING: previous checkpoint not found: {prev_mpack}, training from scratch")
 
@@ -237,7 +237,6 @@ def main(alpha_subset: list[float] | None = None):
         vmc = nk.VMC(hamiltonian=H, optimizer=opt, variational_state=vs, preconditioner=sr)
 
         out_base = _log_base(J_val, alpha_int)
-        mpack_out = _mpack_path(J_val, alpha_int)
         print(f"  Output: {out_base}.log")
         if USE_LR_SCHEDULE:
             print(f"  LR schedule: cosine decay, lr0={val_learning_rate}, alpha_end={LR_DECAY_ALPHA}, max_steps={n_iter}")
@@ -245,29 +244,60 @@ def main(alpha_subset: list[float] | None = None):
             print(f"  LR schedule: constant lr={val_learning_rate}")
         print(f"  Early stop: window={EARLY_STOP_WINDOW}, tol={EARLY_STOP_TOL}")
 
+        # 预写测试：确保目录可写（避免 WSL/挂载盘权限问题导致 log 无法写入）
+        train_dir = _train_dir(J_val, alpha_int)
+        _test_file = os.path.join(train_dir, ".write_test")
+        try:
+            with open(_test_file, "w") as f:
+                f.write("ok")
+            os.remove(_test_file)
+        except OSError as e:
+            print(f"  WARNING: 目录不可写 {train_dir}: {e}")
+            print(f"  建议: export PHASE_DIAGRAM_OUTPUT_ROOT=/path/to/writable/phase_diagram")
+
         energies: list[float] = []
-        stopped_early = False
 
-        # 逐回合训练，以实现“最近 100 回合能量改善不足阈值则早停”
-        for it in range(1, n_iter + 1):
-            vmc.run(out=out_base, n_iter=1, obs=obs)
-            e_now = _energy_mean(vmc)
+        def early_stop_callback(step: int, log_data: dict, driver: Any) -> bool:
+            e_now = _energy_mean(driver)
             energies.append(e_now)
+            if len(energies) <= EARLY_STOP_WINDOW:
+                return True
+            prev_best = float(np.min(energies[-(EARLY_STOP_WINDOW + 1) : -1]))
+            delta_e = abs(prev_best - e_now)
+            if delta_e < EARLY_STOP_TOL:
+                print(
+                    f"  Early stopping at iter {step}/{n_iter}: "
+                    f"best(prev {EARLY_STOP_WINDOW})={prev_best:.12g}, "
+                    f"now={e_now:.12g}, |ΔE|={delta_e:.3e} < {EARLY_STOP_TOL}"
+                )
+                return False
+            return True
 
-            if len(energies) > EARLY_STOP_WINDOW:
-                prev_best = float(np.min(energies[-(EARLY_STOP_WINDOW + 1):-1]))
-                improve = prev_best - e_now
-                if improve < EARLY_STOP_TOL:
-                    print(
-                        f"  Early stopping at iter {it}/{n_iter}: "
-                        f"best(prev {EARLY_STOP_WINDOW})={prev_best:.12g}, "
-                        f"now={e_now:.12g}, improve={improve:.3e} < {EARLY_STOP_TOL}"
-                    )
-                    stopped_early = True
-                    break
+        # 单次 run 写入完整 log；callback 实现早停
+        def _do_run():
+            vmc.run(out=out_base, n_iter=n_iter, obs=obs, callback=early_stop_callback)
+
+        try:
+            _do_run()
+        except Exception as e:
+            err_msg = str(e)
+            err_type = type(e).__name__
+            if loaded_ok and ("ScopeParamShape" in err_type or "shape" in err_msg.lower() or "bias" in err_msg.lower()):
+                print(f"  WARNING: checkpoint 与当前模型结构不兼容（如 RBM vs RBMSymm），从头训练")
+                vs = nk.vqs.MCState(
+                    sampler=sampler, model=model,
+                    n_discard_per_chain=n_discard_per_chain,
+                    chunk_size=chunk_size, n_samples=N_samples,
+                )
+                vmc = nk.VMC(hamiltonian=H, optimizer=opt, variational_state=vs, preconditioner=sr)
+                energies.clear()
+                _do_run()
+            else:
+                raise
 
         prev_mpack = mpack_out
         elapsed = time.time() - point_start
+        stopped_early = len(energies) < n_iter
         if stopped_early:
             print(f"  Done (early-stopped) in {elapsed:.1f}s.  Checkpoint: {mpack_out}")
         else:
@@ -280,9 +310,4 @@ def main(alpha_subset: list[float] | None = None):
 
 
 if __name__ == "__main__":
-    # worker 模式：参数为 alphaInt 子集（逗号分隔）
-    if len(sys.argv) >= 3 and sys.argv[1] == "--worker":
-        subset = [float(x) for x in sys.argv[2].split(",") if x.strip() != ""]
-        main(alpha_subset=subset)
-    else:
-        main(alpha_subset=None)
+    main()

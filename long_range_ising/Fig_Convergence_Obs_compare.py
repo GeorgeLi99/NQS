@@ -90,18 +90,18 @@ def load_convergence_from_csv(parsed_path: str, E0: float):
 
 
 def load_observables_from_csv(parsed_path: str):
-    """返回 iters, mx, mz, mz_afm, sigma_mx, sigma_mz, sigma_mz_afm（无则 None）。"""
+    """返回 iters, mx, ntot, mz_afm, sigma_mx, sigma_ntot, sigma_mz_afm（无则 None）。"""
     cols = _read_parsed_csv(parsed_path)
     iters = cols["global_iter"] if "global_iter" in cols else cols["iter"]
     mx = cols.get("Mx")
-    mz = cols.get("Mz")
+    ntot = cols.get("Ntot")
     mz_afm = cols.get("Mz_AFM")
     sigma_mx = cols.get("sigma_Mx")
-    sigma_mz = cols.get("sigma_Mz")
+    sigma_ntot = cols.get("sigma_Ntot")
     sigma_mz_afm = cols.get("sigma_Mz_AFM")
-    if mx is None or mz is None:
-        raise ValueError("CSV 需包含 Mx, Mz 列")
-    return iters, mx, mz, mz_afm, sigma_mx, sigma_mz, sigma_mz_afm
+    if mx is None or ntot is None:
+        raise ValueError("CSV 需包含 Mx, Ntot 列")
+    return iters, mx, ntot, mz_afm, sigma_mx, sigma_ntot, sigma_mz_afm
 
 
 def load_E0_from_summary(summary_path: str):
@@ -149,10 +149,10 @@ print("complex128 (merged):", parsed_128)
 print("complex64 (merged):", parsed_64)
 
 iters_128, _, rel_err_128 = load_convergence_from_csv(parsed_128, E0)
-_, mx_128, mz_128, mz_afm_128, sig_mx_128, sig_mz_128, sig_mz_afm_128 = load_observables_from_csv(parsed_128)
+_, mx_128, ntot_128, mz_afm_128, sig_mx_128, sig_ntot_128, sig_mz_afm_128 = load_observables_from_csv(parsed_128)
 
 iters_64, _, rel_err_64 = load_convergence_from_csv(parsed_64, E0)
-_, mx_64, mz_64, mz_afm_64, sig_mx_64, sig_mz_64, sig_mz_afm_64 = load_observables_from_csv(parsed_64)
+_, mx_64, ntot_64, mz_afm_64, sig_mx_64, sig_ntot_64, sig_mz_afm_64 = load_observables_from_csv(parsed_64)
 
 colors = ["#085293", "#90d4bd", "#f58b47", "#fcce25", "#6300a7", "#a51f99", "#b7ea63"]
 
@@ -180,18 +180,18 @@ ax1.tick_params("both", which="minor", length=2, direction="in")
 
 ax2 = plt.subplot(122)
 ax2.plot(iters_128, np.abs(mx_128), color=colors[2], lw=2.0, label=r"complex128 $|M_x|$")
-ax2.plot(iters_128, np.abs(mz_128), color=colors[3], lw=2.0, label=r"complex128 $|M_z|$")
+ax2.plot(iters_128, ntot_128, color=colors[3], lw=2.0, label=r"complex128 $N_{\mathrm{tot}}$")
 if mz_afm_128 is not None:
     ax2.plot(iters_128, np.abs(mz_afm_128), color=colors[4], lw=2.0, label=r"complex128 $|M_z^{\mathrm{AFM}}|$")
 ax2.plot(iters_64, np.abs(mx_64), color=colors[2], lw=2.0, linestyle="--", alpha=0.8, label=r"complex64 $|M_x|$")
-ax2.plot(iters_64, np.abs(mz_64), color=colors[3], lw=2.0, linestyle="--", alpha=0.8, label=r"complex64 $|M_z|$")
+ax2.plot(iters_64, ntot_64, color=colors[3], lw=2.0, linestyle="--", alpha=0.8, label=r"complex64 $N_{\mathrm{tot}}$")
 if mz_afm_64 is not None:
     ax2.plot(iters_64, np.abs(mz_afm_64), color=colors[4], lw=2.0, linestyle="--", alpha=0.8, label=r"complex64 $|M_z^{\mathrm{AFM}}|$")
-if sig_mz_128 is not None:
-    ax2.fill_between(iters_128, np.abs(mz_128) - sig_mz_128, np.abs(mz_128) + sig_mz_128, color=colors[3], alpha=0.15)
-if sig_mz_64 is not None:
-    ax2.fill_between(iters_64, np.abs(mz_64) - sig_mz_64, np.abs(mz_64) + sig_mz_64, color=colors[3], alpha=0.1)
-ax2.set_ylabel(r'$M_x,\, M_z,\, M_z^{\mathrm{AFM}}$', fontsize=25)
+if sig_ntot_128 is not None:
+    ax2.fill_between(iters_128, ntot_128 - sig_ntot_128, ntot_128 + sig_ntot_128, color=colors[3], alpha=0.15)
+if sig_ntot_64 is not None:
+    ax2.fill_between(iters_64, ntot_64 - sig_ntot_64, ntot_64 + sig_ntot_64, color=colors[3], alpha=0.1)
+ax2.set_ylabel(r'$M_x,\, N_{\mathrm{tot}},\, M_z^{\mathrm{AFM}}$', fontsize=25)
 ax2.set_xlabel("Iteration", fontsize=25)
 ax2.set_xlim((0, 2000))
 ax2.set_ylim((1e-5, 1.0))

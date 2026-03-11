@@ -2,23 +2,26 @@
 绘制 Long-range Ising VMC 收敛与观测量（与 rydberg_chain 相同逻辑）。
 数据路径：long_range_ising/train/<precision>/ 下 merge_vmc_csvs 生成的 _merged_parsed.csv。
 观测量：Mx, Mz（本模型无 Ntot）。
+若 DMRG/ 下有匹配参数的 DMRG 能量，左图会优先用其作 E0 并画一条横线表示 DMRG 参考。
 """
 
 import argparse
 import csv
 import os
+import re
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import scienceplots
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
+_dmrg_dir = os.path.join(os.path.dirname(_script_dir), "DMRG")
 
 # --- 默认超参数（可由命令行覆盖）---
 DEFAULT_PRECISION = "complex64"
 DEFAULT_L = 16
 DEFAULT_J = 1.0
-DEFAULT_DELTA = 0.0
+DEFAULT_DELTA = 0.5
 DEFAULT_ALPHA = 2.0
 
 
@@ -28,6 +31,11 @@ def _param_subdir_from_params(L: int, J: float, delta: float, alpha_int: float) 
 
 def _basename_from_params(L: int, J: float, delta: float, alpha_int: float) -> str:
     return f"rbm_LongIsing_L={L}_J={J}_delta={delta}_alphaInt={alpha_int}_alpha=4_Cal1"
+
+
+def _legacy_basename_from_params(L: int, J: float, alpha_int: float) -> str:
+    """旧版命名不含 delta（用于兼容已有数据）。"""
+    return f"rbm_LongIsing_L={L}_J={J}_alphaInt={alpha_int}_alpha=4_Cal1"
 
 
 parser = argparse.ArgumentParser(description="绘制 Long-range Ising VMC 收敛与观测量")
@@ -46,18 +54,22 @@ DELTA = args.delta
 
 
 def _resolve_parsed_csv():
-    for name in [f"{BASENAME}_merged_parsed.csv", f"{BASENAME}_run1_parsed.csv", f"{BASENAME}_parsed.csv"]:
-        p = os.path.join(DIR_DATA, name)
-        if os.path.isfile(p):
-            return p
+    legacy_base = _legacy_basename_from_params(args.L, args.J, args.alpha)
+    for base in [BASENAME, legacy_base]:
+        for suffix in ["_merged_parsed.csv", "_run1_parsed.csv", "_parsed.csv"]:
+            p = os.path.join(DIR_DATA, base + suffix)
+            if os.path.isfile(p):
+                return p
     return os.path.join(DIR_DATA, f"{BASENAME}_merged_parsed.csv")
 
 
 def _resolve_summary_csv():
-    for name in [f"{BASENAME}_merged_summary.csv", f"{BASENAME}_run1_summary.csv", f"{BASENAME}_summary.csv"]:
-        p = os.path.join(DIR_DATA, name)
-        if os.path.isfile(p):
-            return p
+    legacy_base = _legacy_basename_from_params(args.L, args.J, args.alpha)
+    for base in [BASENAME, legacy_base]:
+        for suffix in ["_merged_summary.csv", "_run1_summary.csv", "_summary.csv"]:
+            p = os.path.join(DIR_DATA, base + suffix)
+            if os.path.isfile(p):
+                return p
     return os.path.join(DIR_DATA, f"{BASENAME}_merged_summary.csv")
 
 
@@ -112,18 +124,62 @@ def load_E0_from_summary(summary_path: str):
     return float(rows[-1]["E_final"])
 
 
+def load_E0_from_dmrg(L: int, J: float, delta: float, alpha_int: float) -> float | None:
+    """
+    从 DMRG/ 目录下的文本文件中解析匹配 (L, J, delta, alpha) 的 DMRG 能量。
+    文件格式示例：Long-range Ising chain: J = 1.0, alpha = 2.0, delta = 0.0, L = 16.
+    """
+    if not os.path.isdir(_dmrg_dir):
+        return None
+    header_pat = re.compile(
+        r"Long-range Ising chain:\s*J\s*=\s*([\d.]+)\s*,\s*alpha\s*=\s*([\d.]+)\s*[\s,]*delta\s*=\s*([\d.]+)\s*[\s,]*L\s*=\s*(\d+)",
+        re.IGNORECASE,
+    )
+    energy_pat = re.compile(r"energy=\s*([-\d.]+)")
+    tol = 1e-6
+    for fname in os.listdir(_dmrg_dir):
+        path = os.path.join(_dmrg_dir, fname)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        blocks = text.split("\n\n")
+        for block in blocks:
+            lines = block.strip().split("\n")
+            if not lines:
+                continue
+            m = header_pat.search(lines[0])
+            if not m:
+                continue
+            bJ, balpha, bdelta, bL = float(m.group(1)), float(m.group(2)), float(m.group(3)), int(m.group(4))
+            if bL != L or abs(bJ - J) > tol or abs(balpha - alpha_int) > tol or abs(bdelta - delta) > tol:
+                continue
+            energies = []
+            for line in lines[1:]:
+                em = energy_pat.search(line)
+                if em:
+                    energies.append(float(em.group(1)))
+            if energies:
+                return energies[-1]
+    return None
+
+
 # main
 L = args.L
 alpha_int = args.alpha
 plot_key = "Energy_and_Obs"
 
-E0 = load_E0_from_summary(SUMMARY_CSV)
+E0_dmrg = load_E0_from_dmrg(args.L, args.J, args.delta, args.alpha)
+E0 = E0_dmrg if E0_dmrg is not None else load_E0_from_summary(SUMMARY_CSV)
 if E0 is None:
     E0 = -5.0  # 占位，可从精确对角化或文献获得
 
 print("Precision (data dir):", PRECISION)
 print("Data:", PARSED_CSV)
-print("GS energy (E0):", E0)
+print("GS energy (E0):", E0, "(DMRG)" if E0_dmrg is not None else "(summary/placeholder)")
 
 iters, energy, relative_error = load_convergence_from_csv(PARSED_CSV, E0)
 data1 = (iters, relative_error)
@@ -139,6 +195,8 @@ plt.figure(figsize=(2 * 8.6, 6.45))
 ax1 = plt.subplot(121)
 ax1.plot(data1[0], data1[1], color=colors[0], lw=2.0,
          label=rf"$\delta={DELTA},\, \alpha_{{int}}=$" + f" {alpha_int}")
+if E0_dmrg is not None:
+    ax1.axhline(y=1e-8, color="#e74c3c", linestyle="--", lw=1.5, alpha=0.9, label=r"DMRG ($E_0$ ref)")
 
 ax1.set_ylabel(r'$\epsilon = |\frac{E-E_0}{E_0}|$', fontsize=25)
 ax1.set_xlabel("Iteration", fontsize=25)
@@ -189,8 +247,9 @@ plt.tight_layout()
 
 out_dir = os.path.join(_script_dir, "figure")
 os.makedirs(out_dir, exist_ok=True)
-basename_pdf = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.pdf"
-basename_svg = f"Fig_ConvObs_RBM_LongIsing_delta={DELTA}_L={L}_{plot_key}.svg"
+_param_tag = f"L{L}_J{args.J}_delta{DELTA}_alphaInt{alpha_int}"
+basename_pdf = f"Fig_ConvObs_RBM_LongIsing_{_param_tag}_{plot_key}.pdf"
+basename_svg = f"Fig_ConvObs_RBM_LongIsing_{_param_tag}_{plot_key}.svg"
 
 
 def _save_fig(path: str) -> bool:

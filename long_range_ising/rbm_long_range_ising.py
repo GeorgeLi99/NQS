@@ -48,15 +48,15 @@ from netket.utils.group import PermutationGroup, Permutation
 
 # ========== 超参数（优先修改）==========
 # 1. 运算精度：complex64（省显存/快）或 complex128（高精度）；与 parse/merge/Fig 的 DIGIT 一致
-PRECISION = "complex128"
+PRECISION = "complex64"
 if PRECISION not in ("complex64", "complex128"):
     raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
 dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
 dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
 
 # 2. 哈密顿量（长程横场 Ising）H = (Ω/2)Σσˣ - δΣσᶻ + Σ_{i<j} (J/r^α) σᶻᵢσᶻⱼ
-J = 2.0
-alpha_interaction = 0.5
+J = 1.0
+alpha_interaction = 4
 Omega = 2.0
 delta = 0.0  # 纵场 detuning；文件名中会含 delta，便于与 delta=0.5 等区分
 

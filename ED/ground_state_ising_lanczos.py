@@ -7,8 +7,8 @@ from quspin.basis import spin_basis_1d
 # Parameters
 L = 16     # Chain length (adjust as needed for computational feasibility)
 J = 1.0    # Coupling strength (long-range zz)
-alpha = 2.0  # Long-range exponent
-delta = 0.5  # Longitudinal field strength (couples to sigma^z)
+alpha = 0.5  # Long-range exponent
+delta = 1.0  # Longitudinal field strength (couples to sigma^z)
 h = 1.0    # Transverse field strength (couples to sigma^x)
 
 # Create spin basis for 1D chain (full space, no symmetry restrictions)
