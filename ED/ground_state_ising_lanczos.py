@@ -32,7 +32,7 @@ hz_list = [[-delta, i] for i in range(L)]
 static_z = [["z", hz_list]]
 
 # Construct Hamiltonian
-H = hamiltonian(static_zz + static_x + static_z, [], basis=basis, dtype=np.float64)
+H = hamiltonian(static_zz + static_x + static_z, [], basis=basis, dtype=np.complex128)
 
 # Use Lanczos method to find ground state (smallest eigenvalue)
 E, V = H.eigsh(k=1, which='SA')

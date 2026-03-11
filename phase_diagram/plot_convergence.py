@@ -87,6 +87,10 @@ def load_E0(summary_path):
 def plot_one_point(parsed_path, summary_path, out_dir, L, J, delta, alpha_int):
     cols = _read_parsed_csv(parsed_path)
     iters = cols.get("global_iter", cols.get("iter"))
+    if iters is None:
+        iters = np.arange(len(cols["Energy"]), dtype=np.float64)
+    else:
+        iters = np.asarray(iters)
     energy = cols["Energy"]
 
     E0 = load_E0(summary_path)
@@ -119,20 +123,23 @@ def plot_one_point(parsed_path, summary_path, out_dir, L, J, delta, alpha_int):
     ax1.text(0.02, 0.02, rf"$E_0 = {E0:.6g}$", transform=ax1.transAxes, fontsize=14, verticalalignment="bottom")
     ax1.tick_params("both", which="major", length=4, direction="in")
 
-    # Right: observables
+    # Right: observables (use np.asarray so type checker sees ArrayLike)
     ax2 = plt.subplot(122)
     if mx is not None:
-        ax2.plot(iters, np.abs(mx), color=colors[3], lw=2.0, label=r"$|M_x|$")
+        mx_arr = np.abs(np.asarray(mx))
+        ax2.plot(iters, mx_arr, color=colors[3], lw=2.0, label=r"$|M_x|$")
         if sig_mx is not None:
-            ax2.fill_between(iters, np.abs(mx) - sig_mx, np.abs(mx) + sig_mx, color=colors[3], alpha=0.2)
+            ax2.fill_between(iters, mx_arr - sig_mx, mx_arr + sig_mx, color=colors[3], alpha=0.2)
     if mz is not None:
-        ax2.plot(iters, np.abs(mz), color=colors[4], lw=2.0, label=r"$|M_z|$")
+        mz_arr = np.abs(np.asarray(mz))
+        ax2.plot(iters, mz_arr, color=colors[4], lw=2.0, label=r"$|M_z|$")
         if sig_mz is not None:
-            ax2.fill_between(iters, np.abs(mz) - sig_mz, np.abs(mz) + sig_mz, color=colors[4], alpha=0.2)
+            ax2.fill_between(iters, mz_arr - sig_mz, mz_arr + sig_mz, color=colors[4], alpha=0.2)
     if mz_afm is not None:
-        ax2.plot(iters, np.abs(mz_afm), color=colors[5], lw=2.0, label=r"$|M_z^{\mathrm{AFM}}|$")
+        mz_afm_arr = np.abs(np.asarray(mz_afm))
+        ax2.plot(iters, mz_afm_arr, color=colors[5], lw=2.0, label=r"$|M_z^{\mathrm{AFM}}|$")
         if sig_mz_afm is not None:
-            ax2.fill_between(iters, np.abs(mz_afm) - sig_mz_afm, np.abs(mz_afm) + sig_mz_afm, color=colors[5], alpha=0.2)
+            ax2.fill_between(iters, mz_afm_arr - sig_mz_afm, mz_afm_arr + sig_mz_afm, color=colors[5], alpha=0.2)
     ax2.set_ylabel(r"$M_x,\, M_z,\, M_z^{\mathrm{AFM}}$", fontsize=20)
     ax2.set_xlabel("Iteration", fontsize=20)
     ax2.legend(loc="upper right", fontsize=18, frameon=False)

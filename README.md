@@ -13,8 +13,12 @@
 ```
 0_nqs/
 ├── README.md              # 本文件：介绍与环境配置
-├── requirements.txt       # Python 依赖列表
-├── NQS project.md        # 课程/项目说明（模型、任务、参考文献）
+├── requirements.txt      # Python 依赖列表
+├── pyrightconfig.json     # 类型检查（phase_diagram 导入 config 用）
+├── NQS project.md         # 课程/项目说明（模型、任务、参考文献）
+├── ED/                    # 精确对角化（QuSpin Lanczos）基准
+│   ├── ground_state_ising_lanczos.py   # 长程 Ising 基态：H = (Ω/2)Σσ^x - δΣσ^z + Σ_{i<j}(J/r^α)σ^z_iσ^z_j
+│   └── result/            # 结果 CSV，按参数命名：ising_L{L}_J{J}_alpha{alpha}_delta{delta}_h{h}.csv
 ├── rydberg_chain/         # Rydberg 原子链 NQS（观测量 Mx, Mz, Ntot）
 │   ├── rydberg_nqs_starter.py   # NQS 训练；输出到 train/<precision>/<param_subdir>/
 │   ├── parse_vmc_log.py         # 解析 .log → *_runN_parsed.csv / *_runN_summary.csv
@@ -29,20 +33,33 @@
 │       │       ├── rydberg_*.log, rydberg_*.mpack, *_parsed.csv, *_merged_*.csv
 │       └── complex64/
 │           └── L{L}_Rb{Rb}_delta{delta}_alpha{alpha}/
-└── long_range_ising/      # 长程横场 Ising 模型 NQS（观测量 Mx, Mz, Mz_AFM）
-    ├── rbm_long_range_ising.py  # RBM+VMC 训练；输出到 train/<precision>/<param_subdir>/
-    ├── parse_vmc_log.py         # 解析 .log，输出含 sigma_Mx/Mz/Mz_AFM
-    ├── merge_vmc_csvs.py        # 合并 CSV
-    ├── how_to_load_model.py     # 从 .mpack 加载参数示例
-    ├── Fig_Convergence_Obs.py   # 收敛与 |Mx|、|Mz|、|Mz_AFM|
-    ├── Fig_Convergence_Obs_compare.py   # 双精度对比
-    ├── figure/
-    └── train/
-        ├── complex128/
-        │   └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/   # 例：L16_1.0_delta0.0_alphaInt2.0
-        │       ├── rbm_LongIsing_*.log, *.mpack, *_parsed.csv, *_merged_*.csv
-        └── complex64/
-            └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/
+├── long_range_ising/      # 长程横场 Ising 模型 NQS（观测量 Mx, Mz, Mz_AFM）
+│   ├── rbm_long_range_ising.py  # RBM+VMC 训练；输出到 train/<precision>/<param_subdir>/
+│   ├── parse_vmc_log.py         # 解析 .log，输出含 sigma_Mx/Mz/Mz_AFM
+│   ├── merge_vmc_csvs.py        # 合并 CSV
+│   ├── how_to_load_model.py     # 从 .mpack 加载参数示例
+│   ├── Fig_Convergence_Obs.py   # 收敛与 |Mx|、|Mz|、|Mz_AFM|
+│   ├── Fig_Convergence_Obs_compare.py   # 双精度对比
+│   ├── figure/
+│   └── train/
+│       ├── complex128/
+│       │   └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/   # 例：L16_J1.0_delta0.0_alphaInt2.0
+│       │       ├── rbm_LongIsing_*.log, *.mpack, *_parsed.csv, *_merged_*.csv
+│       └── complex64/
+│           └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/
+├── RBMSymm/               # 带对称性的 RBM（长程 Ising）
+│   └── rbmsymm_long_range_ising.py   # 平移对称 RBM；超参数在文件顶部
+├── phase_diagram/         # 长程 Ising 相图流水线（网格训练 + 热力图）
+│   ├── config.py          # 全局配置：ALPHA_INT_LIST, J_LIST, L, delta, 训练超参等
+│   ├── run_phase_diagram.py      # 蛇形遍历 (J, alphaInt) 网格 + 迁移学习
+│   ├── parse_all_logs.py        # 批量解析 .log → CSV
+│   ├── plot_convergence.py      # 每点收敛图，保存到对应参数子目录
+│   ├── plot_phase_diagram.py    # |Mx|、|Mz_AFM| 热力图 + 汇总 CSV
+│   ├── figure/            # 相图 PDF/SVG
+│   └── train/
+│       └── complex64/
+│           └── L{L}_J{J}_delta{delta}_alphaInt{alpha}/   # 每点 log、mpack、CSV、收敛图
+└── ...
 ```
 
 - **训练脚本**（`rydberg_nqs_starter.py`、`rbm_long_range_ising.py`）：根据当前参数生成 `param_subdir`，将 **.log** 与 **.mpack**（checkpoint）写入 `train/<PRECISION>/<param_subdir>/`。
@@ -59,6 +76,7 @@
   - Flax 0.10.4、Optax 0.2.5
   - NumPy 2.0.2
 - **运行环境**：推荐在 **WSL2 (Windows Subsystem for Linux)** 下配置 Python 环境，便于与 Linux 生态一致，并可选 GPU（CUDA on WSL）
+- **ED 脚本**（`ED/ground_state_ising_lanczos.py`）依赖 **QuSpin**；若仅运行 NQS 与相图流水线，可不安装
 
 ---
 
@@ -188,7 +206,35 @@ python3 rydberg_chain/rydberg_nqs_starter.py
 python3 long_range_ising/rbm_long_range_ising.py
 ```
 
-输出在 **`long_range_ising/train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/`**（例：默认 `L16_1.0_delta0.0_alphaInt2.0`），文件名含 **`delta`**（如 `rbm_LongIsing_L=16_J=1.0_delta=0.0_alphaInt=2.0_...`）。观测量为 **Mx、Mz、Mz_AFM**（反铁磁序参量 \(M_z^{\mathrm{AFM}}=(1/L)\sum_j (-1)^j\langle\sigma^z_j\rangle\)）。脚本内 **`PRECISION`**、**`LOAD_CHECKPOINT`**、**`delta`**、**`L`**、**`J`**、**`alpha_interaction`** 等可调。
+输出在 **`long_range_ising/train/<precision>/L{L}_J{J}_delta{delta}_alphaInt{alpha}/`**（例：默认 `L16_J1.0_delta0.0_alphaInt2.0`），文件名含 **`delta`**（如 `rbm_LongIsing_L=16_J=1.0_delta=0.0_alphaInt=2.0_...`）。观测量为 **Mx、Mz、Mz_AFM**（反铁磁序参量 \(M_z^{\mathrm{AFM}}=(1/L)\sum_j (-1)^j\langle\sigma^z_j\rangle\)）。脚本内 **`PRECISION`**、**`LOAD_CHECKPOINT`**、**`delta`**、**`L`**、**`J`**、**`alpha_interaction`** 等可调。
+
+**精确对角化（ED）基准：**
+
+```bash
+python3 ED/ground_state_ising_lanczos.py
+```
+
+哈密顿量 \(H = (\Omega/2)\sum_i \sigma_i^x - \tilde{\delta}\sum_i \sigma_i^z + \sum_{i<j} (J/r_{ij}^\alpha) \sigma_i^z \sigma_j^z\)，参数在脚本顶部：**L、J、alpha、delta、h**（其中 h 对应 Ω/2）。结果写入 **`ED/result/`**，CSV 按参数命名：`ising_L{L}_J{J}_alpha{alpha}_delta{delta}_h{h}.csv`，含基态能量、AFM z 磁化、横磁化等。
+
+**相图流水线（phase_diagram）：**
+
+所有网格与训练配置在 **`phase_diagram/config.py`** 中统一修改（如 `ALPHA_INT_LIST`、`J_LIST`、`L`、`delta` 等）。在 `phase_diagram/` 目录下依次执行：
+
+```bash
+cd phase_diagram
+python3 run_phase_diagram.py    # 蛇形遍历网格 + 迁移学习
+python3 parse_all_logs.py       # 批量解析 .log → CSV
+python3 plot_convergence.py     # 每点收敛图
+python3 plot_phase_diagram.py   # |Mx|、|Mz_AFM| 热力图 → figure/
+```
+
+**对称 RBM（RBMSymm）：**
+
+```bash
+python3 RBMSymm/rbmsymm_long_range_ising.py
+```
+
+长程 Ising 的平移对称 RBM；**L、J、alpha_interaction、alpha_rbm、学习率、采样数等超参数均在文件最前部**，按需修改即可。
 
 ### 6. 解析、合并与画图（可选）
 
