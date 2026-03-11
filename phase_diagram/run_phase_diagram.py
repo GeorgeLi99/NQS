@@ -24,6 +24,7 @@ import flax.serialization
 import flax.linen as nn
 import optax as opx
 import time
+from typing import Any, cast
 
 from netket.operator.spin import sigmax, sigmaz
 
@@ -38,12 +39,35 @@ from config import (
     val_learning_rate, val_diagonal_shift,
     N_samples, n_chains_per_rank, n_discard_per_chain, chunk_size,
     param_subdir as _param_subdir, file_base as _file_base,
+    EARLY_STOP_WINDOW, EARLY_STOP_TOL,
+    USE_LR_SCHEDULE, LR_DECAY_ALPHA,
 )
 
 dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128
 dtype_jnp = jnp.complex64 if PRECISION == "complex64" else jnp.complex128
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
+
+def make_optimizer(n_iter: int) -> Any:
+    if not USE_LR_SCHEDULE:
+        return nk.optimizer.Sgd(learning_rate=float(val_learning_rate))
+
+    lr_schedule = opx.cosine_decay_schedule(
+        init_value=float(val_learning_rate),
+        decay_steps=int(n_iter),
+        alpha=float(LR_DECAY_ALPHA),
+    )
+    # NetKet 的类型标注通常把 learning_rate 写死为 float，但运行时支持 schedule callable
+    return nk.optimizer.Sgd(learning_rate=cast(Any, lr_schedule))
+
+
+def _energy_mean(driver: nk.VMC) -> float:
+    """
+    返回当前 step 的能量均值（尽量稳健地转成 python float）。
+    """
+    e: Any = driver.energy.mean
+    # 可能是复数/DeviceArray；我们只取实部
+    return float(np.real(np.asarray(e)))
 
 
 def _train_dir(J: float, alpha_int: float) -> str:
@@ -122,7 +146,6 @@ def main():
     )
 
     sampler = nk.sampler.MetropolisLocal(hilbert=hi, n_chains_per_rank=n_chains_per_rank, sweep_size=4 * L)
-    opt = nk.optimizer.Sgd(learning_rate=val_learning_rate)
     sr = nk.optimizer.SR(diag_shift=val_diagonal_shift, holomorphic=True)
 
     order = build_snake_order(ALPHA_INT_LIST, J_LIST)
@@ -159,17 +182,42 @@ def main():
         elif prev_mpack is not None:
             print(f"  WARNING: previous checkpoint not found: {prev_mpack}, training from scratch")
 
+        opt = make_optimizer(n_iter)
         vmc = nk.VMC(hamiltonian=H, optimizer=opt, variational_state=vs, preconditioner=sr)
 
         out_base = _log_base(J_val, alpha_int)
         mpack_out = _mpack_path(J_val, alpha_int)
         print(f"  Output: {out_base}.log")
+        print(f"  LR schedule: cosine decay, lr0={val_learning_rate}, alpha_end={LR_DECAY_ALPHA}, max_steps={n_iter}")
+        print(f"  Early stop: window={EARLY_STOP_WINDOW}, tol={EARLY_STOP_TOL}")
 
-        vmc.run(out=out_base, n_iter=n_iter, obs=obs)
+        energies: list[float] = []
+        stopped_early = False
+
+        # 逐回合训练，以实现“最近 100 回合能量改善不足阈值则早停”
+        for it in range(1, n_iter + 1):
+            vmc.run(out=out_base, n_iter=1, obs=obs)
+            e_now = _energy_mean(vmc)
+            energies.append(e_now)
+
+            if len(energies) > EARLY_STOP_WINDOW:
+                prev_best = float(np.min(energies[-(EARLY_STOP_WINDOW + 1):-1]))
+                improve = prev_best - e_now
+                if improve < EARLY_STOP_TOL:
+                    print(
+                        f"  Early stopping at iter {it}/{n_iter}: "
+                        f"best(prev {EARLY_STOP_WINDOW})={prev_best:.12g}, "
+                        f"now={e_now:.12g}, improve={improve:.3e} < {EARLY_STOP_TOL}"
+                    )
+                    stopped_early = True
+                    break
 
         prev_mpack = mpack_out
         elapsed = time.time() - point_start
-        print(f"  Done in {elapsed:.1f}s.  Checkpoint: {mpack_out}")
+        if stopped_early:
+            print(f"  Done (early-stopped) in {elapsed:.1f}s.  Checkpoint: {mpack_out}")
+        else:
+            print(f"  Done in {elapsed:.1f}s.  Checkpoint: {mpack_out}")
 
     total_elapsed = time.time() - total_start
     print(f"\n{'=' * 70}")

@@ -1,0 +1,17 @@
+
+Long-range Ising chain: J = 0.5, alpha = 3.0, L = 32, hx = 1.0 is fixed.
+After sweep 1 energy=-33.89161354158257  maxlinkdim=112 maxerr=9.97E-16 time=1.290
+After sweep 1 energy=-33.89161354158352  maxlinkdim=114 maxerr=9.96E-16 time=1.145
+
+Long-range Ising chain: J = 1.0, alpha = 3.0, L = 32, hx = 1.0 is fixed.
+After sweep 1 energy=-39.39497079645866  maxlinkdim=258 maxerr=9.95E-16 time=3.857
+After sweep 1 energy=-39.39497079646504  maxlinkdim=314 maxerr=9.99E-16 time=7.546
+
+Long-range Ising chain: J = 1.5, alpha = 3.0, L = 32, hx = 1.0 is fixed.
+*** Slow converging ... ...  *** (Close to critical point)
+After sweep 49 energy=-49.52565 4876003294  maxlinkdim=271 maxerr=1.00E-15 time=4.769
+After sweep 50 energy=-49.52565 504684057  maxlinkdim=264 maxerr=9.99E-16 time=5.397
+
+Long-range Ising chain: J = 2.0, alpha = 3.0, L = 32, hx = 1.0 is fixed.
+After sweep 1 energy=-62.265840406813126  maxlinkdim=83 maxerr=9.95E-16 time=0.905
+After sweep 1 energy=-62.265840406816665  maxlinkdim=84 maxerr=9.99E-16 time=1.133
