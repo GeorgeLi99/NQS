@@ -2,12 +2,12 @@
 # Python >= 3.9 recommended. Install in WSL: see README.md
 
 numpy==2.0.2
-jax==0.4.38
-jaxlib==0.4.38
+# jax==0.4.38
+# jaxlib==0.4.38
 netket==3.19.2
 optax==0.2.5
 flax==0.10.4
-
+matplotlib==3.10.0
 # Optional: for MPI parallel runs (e.g. mpirun -np 4 python ...)
 # mpi4py==4.1.1
 

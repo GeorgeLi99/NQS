@@ -32,7 +32,7 @@ def _file_base(L, J, delta, alpha_int, alpha_rbm, cal):
 # ======================================================================
 # Log 解析函数（照搬 long_range_ising/parse_vmc_log.py）
 # ======================================================================
-_OBS_COLS = ["Mx", "Mz", "Mz_AFM", "Ntot"]
+_OBS_COLS = ["Mx", "Mz", "Mz_AFM", "Mz_AFM_sq", "Ntot"]
 
 
 def load_log(path: str) -> dict:

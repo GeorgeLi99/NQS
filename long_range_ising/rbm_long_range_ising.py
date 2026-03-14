@@ -48,7 +48,7 @@ from netket.utils.group import PermutationGroup, Permutation
 
 # ========== 超参数（优先修改）==========
 # 1. 运算精度：complex64（省显存/快）或 complex128（高精度）；与 parse/merge/Fig 的 DIGIT 一致
-PRECISION = "complex64"
+PRECISION = "complex128"
 if PRECISION not in ("complex64", "complex128"):
     raise ValueError(f"PRECISION must be 'complex64' or 'complex128', got: {PRECISION!r}")
 dtype_np = np.complex64 if PRECISION == "complex64" else np.complex128

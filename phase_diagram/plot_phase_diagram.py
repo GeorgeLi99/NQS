@@ -78,6 +78,7 @@ def main():
     n_j = len(J_LIST)
     mx_grid = np.full((n_alpha, n_j), np.nan)
     mz_afm_grid = np.full((n_alpha, n_j), np.nan)
+    mz_afm_sq_grid = np.full((n_alpha, n_j), np.nan)
     e_grid = np.full((n_alpha, n_j), np.nan)
 
     summary_rows = []
@@ -103,15 +104,18 @@ def main():
             e_final = float(row.get("E_final", "nan"))
             mx_val = abs(float(row.get("Mx_final", "nan")))
             mz_afm_val = abs(float(row.get("Mz_AFM_final", "nan")))
+            mz_afm_sq_val = float(row.get("Mz_AFM_sq_final", "nan"))
 
             mx_grid[ai, ji] = mx_val
             mz_afm_grid[ai, ji] = mz_afm_val
+            mz_afm_sq_grid[ai, ji] = mz_afm_sq_val
             e_grid[ai, ji] = e_final
 
             summary_rows.append({
                 "J": J, "alphaInt": alpha_int,
                 "E_final": e_final,
                 "abs_Mx": mx_val, "abs_Mz_AFM": mz_afm_val,
+                "Mz_AFM_sq": mz_afm_sq_val,
             })
 
     print(f"Loaded {len(summary_rows)} / {n_alpha * n_j} points ({missing} missing)")
@@ -122,7 +126,7 @@ def main():
     csv_out = os.path.join(fig_dir, f"phase_diagram_summary_L{args.L}.csv")
     if summary_rows:
         with open(csv_out, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=["J", "alphaInt", "E_final", "abs_Mx", "abs_Mz_AFM"])
+            w = csv.DictWriter(f, fieldnames=["J", "alphaInt", "E_final", "abs_Mx", "abs_Mz_AFM", "Mz_AFM_sq"])
             w.writeheader()
             w.writerows(summary_rows)
         print(f"Summary CSV: {csv_out}")
@@ -140,6 +144,7 @@ def main():
     for data_grid, obs_label, obs_tag in [
         (mx_grid, r"$|M_x|$", "Mx"),
         (mz_afm_grid, r"$|M_z^{\mathrm{AFM}}|$", "MzAFM"),
+        (mz_afm_sq_grid, r"$\langle (M_z^{\mathrm{AFM}})^2 \rangle$", "MzAFM_sq"),
     ]:
         fig, ax = plt.subplots(figsize=(8, 6))
 
